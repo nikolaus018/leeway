@@ -190,7 +190,8 @@ def symbol(mark):
         port = "port" in category or colours[0] == "red"
         return f"{kind}-{'port' if port else 'starboard'}"
     if t.endswith("_cardinal"):
-        return f"{kind}-cardinal-{category if category in ('north', 'south', 'east') else 'west'}"
+        # Only the four real categories: guessing "west" would draw a wrong mark.
+        return f"{kind}-cardinal-{category}" if category in ("north", "south", "east", "west") else f"{kind}-generic"
     if t.endswith("_isolated_danger"):
         return "isolated-danger"
     if t.endswith("_safe_water"):

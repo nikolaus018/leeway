@@ -22,7 +22,7 @@ struct GridLabels: View {
 
     private func tag(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .semibold).monospacedDigit())
+            .font(.caption2.weight(.semibold).monospacedDigit())
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
             .background(.regularMaterial, in: .capsule)
@@ -386,7 +386,7 @@ struct MarkEditor: View {
                                     .background(mark.symbol == symbol ? Color.orange.opacity(0.25) : .clear, in: .circle)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(symbol)
+                            .accessibilityLabel(symbol.replacingOccurrences(of: ".", with: " ").replacingOccurrences(of: "fill", with: "").trimmingCharacters(in: .whitespaces))
                         }
                     }
                 }

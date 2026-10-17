@@ -140,10 +140,18 @@ enum SeamarkSymbols {
             }
         case _ where name.contains("cardinal"):
             let quadrant = name.split(separator: "-").last.map(String.init) ?? "north"
-            stroke(UIBezierPath(rect: rect(5, 9)), fill: colour("yellow"), width: 0.7)
-            colour("black").setFill()
-            let band = quadrant == "north" ? rect(5, 4.5) : quadrant == "south" ? rect(5, 4.5, dy: -4.5) : rect(5, 3, dy: -3)
-            UIBezierPath(rect: band).fill()
+            // IALA: north black over yellow, south yellow over black, east black with a yellow band,
+            // west yellow with a black band. (rect(w, h, dy:) grows upwards from the position.)
+            let body: UIColor = quadrant == "east" ? colour("black") : colour("yellow")
+            let band: UIColor = quadrant == "east" ? colour("yellow") : colour("black")
+            stroke(UIBezierPath(rect: rect(5, 9)), fill: body, width: 0.7)
+            band.setFill()
+            switch quadrant {
+            case "north": UIBezierPath(rect: rect(5, 4.5, dy: -4.5)).fill()   // upper half
+            case "south": UIBezierPath(rect: rect(5, 4.5)).fill()             // lower half
+            default: UIBezierPath(rect: rect(5, 3, dy: -3)).fill()            // middle third
+            }
+            stroke(UIBezierPath(rect: rect(5, 9)), fill: nil, width: 0.7)
             let t1 = CGPoint(x: c.x, y: c.y - 12 * k), t2 = CGPoint(x: c.x, y: c.y - 16.5 * k)
             let (up1, up2): (Bool, Bool) = switch quadrant {
             case "north": (true, true)

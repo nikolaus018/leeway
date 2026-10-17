@@ -10,7 +10,9 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 Image(systemName: "sailboat.fill")
-                    .font(.system(size: 52))
+                    .font(.system(.largeTitle, design: .default).weight(.regular))
+                    .imageScale(.large)
+                    .accessibilityHidden(true)
                     .foregroundStyle(.tint)
                     .padding(.top, 40)
                 Text("Leeway")

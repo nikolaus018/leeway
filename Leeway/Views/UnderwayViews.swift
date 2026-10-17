@@ -21,7 +21,7 @@ struct MOBPanel: View {
             }
             HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(underway.mobBearing.map { String(format: "%03.0f°", $0) } ?? "–")
-                    .font(.system(size: 40, weight: .heavy).monospacedDigit())
+                    .font(.largeTitle.weight(.heavy).monospacedDigit())
                 Text(underway.mobDistance.map { $0 < 0.3 ? "\(Int(($0 * 1852).rounded())) m" : String(format: "%.2f NM", $0) } ?? "–")
                     .font(.title.weight(.bold).monospacedDigit())
             }

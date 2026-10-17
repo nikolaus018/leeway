@@ -148,10 +148,10 @@ struct ChartStyle: Equatable {
                                     "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.4, 12, 1.0]]))
         for pack in packs {
             let source = "chart-\(pack.id)"
-            // Zoomed far out, the worldwide depth draws it: the pack's coarse low-zoom tiles look blocky and
-            // end in straight edges at its boundary.
+            // Zoomed far out, the worldwide depth draws it: the pack's coarsest tiles look blocky and end in
+            // straight edges at its boundary. Not much later though: the worldwide depth is blotchy up close.
             layers += depthLayers(prefix: "pack-\(pack.id)", source: source, contours: Self.packContours, satellite: satellite,
-                                  minzoom: 9)
+                                  minzoom: 7.5)
             layers.append(layer("pack-\(pack.id)-area-fill", "fill", source: source, sourceLayer: "area", minzoom: 9,
                                 filter: ["all", ["==", ["geometry-type"], "Polygon"],
                                          ["in", ["get", "kind"], ["literal", ["restricted", "tss_separation", "marine_farm"]]]],
@@ -311,7 +311,8 @@ struct ChartStyle: Equatable {
             layer("\(prefix)-contour", "line", source: source, sourceLayer: "depcnt", minzoom: max(6, minzoom),
                   filter: ["all", ["!=", ["get", "depth"], safety],
                            ["any", [">=", ["zoom"], 10], [">=", ["get", "depth"], 10]]],
-                  paint: ["line-color": c.contour, "line-opacity": satellite ? 0.6 : 0.8,
+                  paint: ["line-color": c.contour,
+                          "line-opacity": satellite ? 0.6 : ["interpolate", ["linear"], ["zoom"], 10.5, 0.45, 13, 0.8],
                           "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.3, 14, 0.9]]),
             layer("\(prefix)-safety", "line", source: source, sourceLayer: "depcnt", minzoom: max(6, minzoom),
                   filter: ["==", ["get", "depth"], safety],
@@ -368,11 +369,16 @@ struct ChartStyle: Equatable {
                   filter: ["==", ["get", "part"], "limit"],
                   paint: ["line-color": c.ink, "line-width": 0.7, "line-dasharray": [4, 3], "line-opacity": 0.7]),
             symbol("\(id)-soundings", source: source, sourceLayer: "soundg", minzoom: 11, visible: showSoundings,
-                   layout: ["text-field": ["to-string", ["get", "depth"]],
-                            "text-font": ["Noto Sans Italic"],
-                            "text-size": ["interpolate", ["linear"], ["zoom"], 11, 9, 16, 12],
+                   // S-52: depths under 31 m to the decimetre, deeper ones in whole metres (rounded down);
+                   // soundings at or under the safety depth in bold black, deeper ones in grey.
+                   layout: ["text-field": ["case", [">=", ["get", "depth"], 31],
+                                           ["to-string", ["floor", ["get", "depth"]]], ["to-string", ["get", "depth"]]],
+                            "text-font": ["case", ["<=", ["get", "depth"], safetyDepth],
+                                          ["literal", ["Noto Sans Bold"]], ["literal", ["Noto Sans Italic"]]],
+                            "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 16, 13],
                             "text-padding": 6],
-                   paint: ["text-color": c.sounding]),
+                   paint: ["text-color": ["case", ["<=", ["get", "depth"], safetyDepth], c.ink, c.sounding],
+                           "text-halo-color": c.halo, "text-halo-width": 1]),
             symbol("\(id)-names", source: source, sourceLayer: "names",
                    layout: ["text-field": ["get", "n"], "text-font": ["Noto Sans Italic"],
                             "text-size": ["case", ["==", ["get", "t"], "sea"],

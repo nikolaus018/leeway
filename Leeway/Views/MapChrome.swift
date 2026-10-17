@@ -67,6 +67,7 @@ struct InstrumentStrip: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                             .symbolEffect(.pulse)
+                            .accessibilityLabel("Recording track")
                     }
                 }
                 if expanded, let position = tracker.location?.coordinate {
@@ -115,7 +116,7 @@ private struct Reading: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 9, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value)
@@ -149,7 +150,7 @@ struct NavigationBar: View {
                     Reading(title: "DTW", value: distance(r.distance), unit: r.distance < 0.3 ? "m" : "NM")
                     Reading(title: "ETA", value: r.etaNext.map { $0.formatted(date: .omitted, time: .shortened) } ?? "–", unit: "")
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("XTE").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                        Text("XTE").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
                         HStack(spacing: 2) {
                             Image(systemName: r.crossTrack > 0 ? "arrow.left" : "arrow.right")
                                 .font(.caption.weight(.bold))
@@ -246,6 +247,7 @@ struct Crosshair: View {
             Rectangle().fill(.white).frame(width: 10, height: 2).offset(x: 19)
         }
         .shadow(color: .black.opacity(0.6), radius: 2)
+        .accessibilityHidden(true)
     }
 }
 
@@ -352,7 +354,7 @@ struct MapRail: View {
                     .foregroundStyle(model.isMeasuring ? Color.pink : Color.accentColor)
             }
             .labelStyle(.iconOnly)
-            .font(.system(size: 17, weight: .medium))
+            .font(.body.weight(.medium))
             .foregroundStyle(.tint)
             .catchesTouches(cornerRadius: 22)
             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
