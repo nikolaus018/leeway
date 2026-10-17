@@ -92,7 +92,7 @@
 /* Begin PBXFileReference section */
 		020A1994950863B5E101FC3C /* Underway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Underway.swift; sourceTree = "<group>"; };
 		10D642B9F28D5AC5C169C58E /* GPX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPX.swift; sourceTree = "<group>"; };
-		18C224E8BAB29A9C87B37793 /* Leeway.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Leeway.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		18C224E8BAB29A9C87B37793 /* Leeway.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Leeway.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19A36D6D617334874E5388BE /* LegRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegRow.swift; sourceTree = "<group>"; };
 		1CC140018DCD447BD0874C2C /* RoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingTests.swift; sourceTree = "<group>"; };
 		209F0DD62480A15FAD2A6271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -107,7 +107,7 @@
 		52F2994046CCEA04C05EB831 /* SeamarkSymbols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeamarkSymbols.swift; sourceTree = "<group>"; };
 		5938B4FFF285100FF120FF77 /* ChartOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlays.swift; sourceTree = "<group>"; };
 		5C413FE184C3EC462C037FD5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		65C8845E55BA88F208B08E2C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		65C8845E55BA88F208B08E2C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		70DCF24BFFDF645642194F67 /* DepartureChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureChart.swift; sourceTree = "<group>"; };
 		713127C69E2434FB93B1CC90 /* ServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicesTests.swift; sourceTree = "<group>"; };
 		726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSheet.swift; sourceTree = "<group>"; };
@@ -130,12 +130,12 @@
 		C85E889D9B66A8A1749ABE3B /* Geo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geo.swift; sourceTree = "<group>"; };
 		CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		CD3634DEA43B97B03002D439 /* OfflineMaps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMaps.swift; sourceTree = "<group>"; };
-		CEBE34A3685B774E8F5E2FFF /* LeewayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LeewayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CEBE34A3685B774E8F5E2FFF /* LeewayTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LeewayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0007F434BC83411D393D4D7 /* Sun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sun.swift; sourceTree = "<group>"; };
 		D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayActivity.swift; sourceTree = "<group>"; };
 		D59EDB83D29FA350F3DA12BC /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
 		D93883863C8AA97C51F552BD /* MarineWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarineWeatherService.swift; sourceTree = "<group>"; };
-		DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LeewayWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LeewayWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDD944797596A69421E6B18E /* BoatSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoatSettingsView.swift; sourceTree = "<group>"; };
 		E4353055592D8D20873CF331 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		E5B8C081EABD185ABA2579BF /* ChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStyle.swift; sourceTree = "<group>"; };
@@ -351,7 +351,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2710;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0532F9C097B3BD703E4F66F9 = {
 						DevelopmentTeam = C5MSK2XBMK;
@@ -522,10 +522,8 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -540,7 +538,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -553,6 +550,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				INFOPLIST_FILE = LeewayWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -602,10 +600,8 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -627,7 +623,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -643,6 +638,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				INFOPLIST_FILE = Leeway/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -659,6 +655,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -679,6 +676,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				INFOPLIST_FILE = Leeway/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -695,6 +693,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				INFOPLIST_FILE = LeewayWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -713,6 +712,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
