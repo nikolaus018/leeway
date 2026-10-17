@@ -1,5 +1,8 @@
 use std::{env, path::PathBuf};
 
+/// Croatia and its coastal waters (south, west, north, east).
+pub const CROATIA: [f64; 4] = [42.2, 13.0, 46.6, 19.5];
+
 /// Everything the server needs from the environment. Every value has a default, so
 /// `cargo run` with no environment at all serves forecasts, tiles and the bundled charts.
 #[derive(Clone, Debug)]
@@ -18,6 +21,7 @@ pub struct Config {
     pub ais_key: Option<String>,
     pub ais_url: String,
     /// Sailing area (south, west, north, east): AIS is received and the wind grid kept warm here.
+    /// Croatia and its waters unless AIS_BBOX says otherwise.
     pub ais_bbox: [f64; 4],
     /// Sent upstream as the User-Agent, as OpenSeaMap and Open-Meteo ask.
     pub user_agent: String,
@@ -68,7 +72,7 @@ impl Config {
                 .unwrap_or_else(|| "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png".into()),
             ais_key: var("AISSTREAM_API_KEY"),
             ais_url: var("AISSTREAM_URL").unwrap_or_else(|| "wss://stream.aisstream.io/v0/stream".into()),
-            ais_bbox: var("AIS_BBOX").and_then(|s| parse_bbox(&s)).unwrap_or([39.5, 12.0, 46.0, 20.5]),
+            ais_bbox: var("AIS_BBOX").and_then(|s| parse_bbox(&s)).unwrap_or(CROATIA),
             user_agent: var("USER_AGENT").unwrap_or_else(|| {
                 format!("Leeway-seadata/{} (+https://github.com/nikolaus018/leeway)", env!("CARGO_PKG_VERSION"))
             }),

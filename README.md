@@ -47,6 +47,14 @@ iOS 26 (Liquid Glass). One nautical chart for the whole world, with detailed off
 - **Search** harbours, marinas, anchorages, bays, islands and towns (offline from the packs, online via the server).
 - **Offline map**: saves the base map, depth and fonts around each chart pack, so the whole chart works without signal.
 
+## Coverage
+
+Croatia and its waters, for now: the map stays inside it (`ChartMapView.coverage`), and the data server
+gathers AIS, the wind grid, MeteoAlarm warnings and place search for Croatia only (`config::CROATIA`,
+`COUNTRIES` in `warnings.rs`). Official coastline, sea names, traffic separation schemes, cables,
+pipelines and platforms come from the Croatian Hydrographic Institute's open data
+(`tools/fetch_hhi.py`, used by `tools/build_vector.py`). Covering another country means widening those.
+
 ## Architecture
 
 ```

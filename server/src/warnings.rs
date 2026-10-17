@@ -11,21 +11,9 @@ use tokio::sync::RwLock;
 
 use crate::{config::Config, metrics};
 
-/// MeteoAlarm feed slug, ISO code, and the country's rough bounding box (west, south, east, north),
-/// for the seas Leeway sails in.
-const COUNTRIES: &[(&str, &str, [f64; 4])] = &[
-    ("croatia", "HR", [13.4, 42.3, 19.5, 46.6]),
-    ("slovenia", "SI", [13.3, 45.4, 16.7, 46.9]),
-    ("bosnia-herzegovina", "BA", [15.7, 42.5, 19.7, 45.3]),
-    ("montenegro", "ME", [18.4, 41.8, 20.4, 43.6]),
-    ("italy", "IT", [6.6, 35.4, 18.6, 47.1]),
-    ("greece", "GR", [19.3, 34.7, 29.7, 41.8]),
-    ("malta", "MT", [14.1, 35.7, 14.6, 36.1]),
-    ("cyprus", "CY", [32.2, 34.5, 34.7, 35.8]),
-    ("france", "FR", [-5.2, 41.3, 9.6, 51.1]),
-    ("spain", "ES", [-9.4, 35.9, 4.4, 43.8]),
-    ("portugal", "PT", [-9.6, 36.9, -6.1, 42.2]),
-];
+/// MeteoAlarm feed slug, ISO code, and the country's rough bounding box (west, south, east, north).
+/// Leeway covers Croatia only for now; add a country here to cover another.
+const COUNTRIES: &[(&str, &str, [f64; 4])] = &[("croatia", "HR", [13.4, 42.3, 19.5, 46.6])];
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]

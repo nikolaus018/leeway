@@ -144,7 +144,14 @@ impl Search {
     }
 
     async fn photon(&self, query: &str, bias: Option<(f64, f64)>) -> Result<Vec<Place>> {
-        let mut params = vec![("q", query.to_string()), ("limit", "10".into()), ("lang", "en".into())];
+        // Croatia only for now: Photon takes the box as west,south,east,north.
+        let [south, west, north, east] = crate::config::CROATIA;
+        let mut params = vec![
+            ("q", query.to_string()),
+            ("limit", "10".into()),
+            ("lang", "en".into()),
+            ("bbox", format!("{west},{south},{east},{north}")),
+        ];
         if let Some((lat, lon)) = bias {
             params.push(("lat", lat.to_string()));
             params.push(("lon", lon.to_string()));
