@@ -329,7 +329,7 @@ def hhi_layers():
 # MARK: Official aids to navigation (Plovput), added where OpenSeaMap has none
 
 PLOVPUT_LIGHT_RHYTHM = {"Bl": "Fl", "DBl": "LFl", "K": "Q", "VK": "VQ", "Izo": "Iso", "Pr": "Oc", "Mo": "Mo"}
-PLOVPUT_COLOUR = {"B": "W", "C": "R", "Z": "G", "Ž": "Y", "P": "Y"}
+PLOVPUT_COLOUR = {"B": "W", "C": "R", "Z": "G", "Ž": "Y", "P": "B"}
 
 
 def plovput_light(text, height, range_nm):
@@ -355,14 +355,21 @@ def plovput_kind(tip, description, colour, topmark):
     shape = {12: "beacon", 13: "beacon", 14: "buoy", 15: "buoy"}.get(tip)
     if shape is None:
         return None
-    if "žuta iznad crne" in words or "vrhom prema dolje" in words and "dva crna stošca" in words:
-        return f"{shape}_cardinal", "south", "yellow;black"
-    if "crna iznad žute" in words or ("vrhom prema gore" in words and "dva crna stošca" in words):
-        return f"{shape}_cardinal", "north", "black;yellow"
-    if "crna sa širokim žutim pojasom" in words or "bazom prema bazi" in words:
-        return f"{shape}_cardinal", "east", "black;yellow;black"
-    if "žuta sa širokim crnim pojasom" in words or "vrhom prema vrhu" in words:
-        return f"{shape}_cardinal", "west", "yellow;black;yellow"
+    # A cardinal mark is told by its colours and by its topmark: when the two disagree, don't guess a side
+    # (routing keeps clear of the danger the category points at).
+    by_colour = ("south" if "žuta iznad crne" in words else "north" if "crna iznad žute" in words
+                 else "east" if "crna sa širokim žutim pojasom" in words
+                 else "west" if "žuta sa širokim crnim pojasom" in words else None)
+    by_topmark = None
+    if "dva crna stošca" in words:
+        by_topmark = ("north" if "vrhom prema gore" in words else "south" if "vrhom prema dolje" in words
+                      else "east" if "bazom prema bazi" in words else "west" if "vrhom prema vrhu" in words else None)
+    if by_colour or by_topmark:
+        if by_colour and by_topmark and by_colour != by_topmark:
+            return shape, None, None
+        side = by_colour or by_topmark
+        colours = {"north": "black;yellow", "south": "yellow;black", "east": "black;yellow;black", "west": "yellow;black;yellow"}
+        return f"{shape}_cardinal", side, colours[side]
     if "crna" in words and ("crven" in words or "dvije crne kugle" in words):
         return f"{shape}_isolated_danger", None, "black;red;black"
     if "crvene i bijele" in words or "crveno-bijel" in words:

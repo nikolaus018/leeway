@@ -43,6 +43,8 @@ device, an account, a boat or a decision.
 - [ ] **HHI data:** the catalogue says "no restrictions, cite the source". Read
       https://www.hhi.hr/dokumenti/uvjeti-pristupa-i-koristenja yourself, and keep the attribution (it is in the
       app's data sources and the server's `/v1/info`).
+- [ ] **Plovput (aids to navigation) and Bioportal (protected areas) data:** both are public Croatian services, but I
+      found no licence statement for them. Check their terms (and ask if unsure) before releasing; the app credits both.
 - [ ] **OpenStreetMap (ODbL):** the chart pack is a derived database. Decide how you will meet the share-alike
       and attribution terms (publishing the pack data and build scripts is the usual way).
 - [ ] **The "not for navigation" disclaimer:** have its wording checked for your jurisdiction.
@@ -75,6 +77,11 @@ device, an account, a boat or a decision.
       Venvy session has expired).
 
 ## 6. Known gaps you may accept for 1.0
+
+- **Restricted zones:** the chart shows national and nature parks, special reserves and the strict-protection sea
+  zones (official data), plus the dozen restricted areas OpenSeaMap has. It does not have military areas
+  (Croatia publishes no usable data), anchoring bans, fishing rules, port limits, or the zones of the parks that
+  publish none (the Kornati and Telašćica parks show their outline only). Always read the park's own rules.
 
 - Chart symbols follow INT 1 / S-52 in spirit, not to the letter: no safety-depth shoal highlighting, simplified
   buoy shapes, no drying heights or tidal datum, custom (not S-52) palettes.
