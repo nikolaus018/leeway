@@ -1,0 +1,45 @@
+name: Leeway
+options:
+  bundleIdPrefix: com.nikolausmarek
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Leeway:
+    type: application
+    platform: iOS
+    sources:
+      - path: Leeway
+        excludes: ["Charts/**"]
+      - path: Leeway/Charts
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        # Routing and chart rendering crunch millions of grid cells; unoptimised builds are too slow to try out.
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+    info:
+      path: Leeway/Info.plist
+      properties:
+        CFBundleDisplayName: Leeway
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        UIBackgroundModes: [location]
+        NSLocationWhenInUseUsageDescription: Leeway shows your position on the chart and records your track.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Leeway keeps recording your track while the screen is off.
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
