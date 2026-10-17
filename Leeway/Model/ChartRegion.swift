@@ -57,6 +57,16 @@ nonisolated struct Seamark: Decodable, Sendable, Hashable {
     var isHarbourLike: Bool { ["harbour", "anchorage", "small_craft_facility"].contains(type) }
 }
 
+/// A named feature a sea chart labels: bay, cape, strait, islet, island.
+nonisolated struct PlaceName: Decodable, Sendable, Hashable {
+    let type: String
+    let name: String
+    let latitude: Double
+    let longitude: Double
+
+    enum CodingKeys: String, CodingKey { case type = "t", name = "n", latitude = "la", longitude = "lo" }
+}
+
 /// A bridge over navigable water.
 nonisolated struct Bridge: Decodable, Sendable, Hashable {
     let id: Int
@@ -88,6 +98,7 @@ nonisolated final class ChartRegion: Sendable {
     let grid: [UInt8]
     let seamarks: [Seamark]
     let bridges: [Bridge]
+    let names: [PlaceName]
     /// Coastline polygons (lon/lat), for drawing crisp land; the grid is too coarse at harbour scale.
     let landRings: [[SIMD2<Float>]]
     /// Bounding box per ring: west, south, east, north.
@@ -102,6 +113,7 @@ nonisolated final class ChartRegion: Sendable {
         let rows, cols: Int
         let seamarks: [Seamark]
         let bridges: [Bridge]?
+        let names: [PlaceName]?
     }
 
     init(metadata: URL, depth: URL, land: URL? = nil) throws {
@@ -116,6 +128,7 @@ nonisolated final class ChartRegion: Sendable {
         grid = [UInt8](raw)
         seamarks = meta.seamarks
         bridges = meta.bridges ?? []
+        names = meta.names ?? []
         var rings: [[SIMD2<Float>]] = []
         if let land, let packedLand = try? Data(contentsOf: land) as NSData,
            let blob = try? packedLand.decompressed(using: .zlib) as Data {
@@ -185,6 +198,10 @@ nonisolated final class ChartRegion: Sendable {
         guard p.x >= 0, p.y >= 0, col < cols, row < rows else { return nil }
         return row * cols + col
     }
+
+    /// Row or column of a latitude/longitude, clamped to the grid.
+    func cell(row latitude: Double) -> Int { min(rows - 1, max(0, Int((north - latitude) / latStep))) }
+    func cell(col longitude: Double) -> Int { min(cols - 1, max(0, Int((longitude - west) / lonStep))) }
 
     func center(ofCell index: Int) -> CLLocationCoordinate2D {
         let row = index / cols, col = index % cols

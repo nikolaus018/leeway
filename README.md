@@ -1,7 +1,8 @@
 # Leeway
 
 A native iOS passage planner in the spirit of savvy navvy: SwiftUI + MapKit, iOS 26 (Liquid Glass).
-The bundled offline chart covers **Kvarner and Istria** (Rijeka, Opatija, Cres, Lošinj, Krk, Rab, Pula, Rovinj).
+The bundled offline chart covers the **eastern Adriatic**: the Slovenian coast, Istria, Kvarner, all of Dalmatia, Dubrovnik
+and the Bay of Kotor (13.2–19.0°E, 42.2–45.57°N), plus the Italian shore opposite from EMODnet heights.
 
 ## Features
 
@@ -14,7 +15,11 @@ The bundled offline chart covers **Kvarner and Istria** (Rijeka, Opatija, Cres, 
 - **Tap anything** to see what it is (name, type, light characteristic such as `Fl(2)R.5s 12m 6M`, colours), the depth there,
   and its position in degrees and minutes. "Route here" plans a route from your GPS position.
 - Nautical-mile scale bar and an optional lat/lon grid with edge labels.
-- Base map: Chart, Standard or Satellite. Overlays can be toggled from the layers button.
+- Names of bays, channels, capes and islets in chart lettering.
+- Base map: **Chart** (the offline paper-chart look) or **Satellite** (imagery with contours, shallows, soundings and
+  seamarks on top). Overlays can be toggled from the layers button.
+- The chart never goes blank while you pan or zoom: tiles are cached, and stand-ins from other zoom levels fill in until
+  the sharp tile is ready.
 
 **Routing**
 - **Automatic** (default): the shortest path through water at least your *safety depth* (draft + under-keel clearance),
@@ -66,9 +71,16 @@ It writes `Leeway/Charts/<id>.depth` (a 67 m UInt8 depth/land grid), `<id>.land`
 (metadata and seamarks). The app loads every pack in that folder.
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install numpy scipy shapely pillow tifffile
-.venv/bin/python tools/build_region.py kvarner "Kvarner & Istria" 13.45 44.30 15.10 45.60
+python3 -m venv .venv && .venv/bin/pip install numpy scipy shapely pillow tifffile osmium
+# OSM country extracts from download.geofabrik.de (croatia, slovenia, bosnia-herzegovina, montenegro)
+.venv/bin/python tools/build_region.py adriatic "Eastern Adriatic" 13.2 42.2 19.0 45.57 \
+    --osm croatia.osm.pbf,slovenia.osm.pbf,bosnia-herzegovina.osm.pbf,montenegro.osm.pbf
 ```
+
+Without `--osm`, the script queries the Overpass API tile by tile (fine for small areas, unreliable for large ones).
+
+Routing builds its grid only for a window around the route. Passages too long for full detail are planned on a coarser
+grid, and any leg that would graze shallows is re-routed at full detail.
 
 Near the coast, the script never reports more depth than a steep shelf would allow (`SHORE_SLOPE`), because the survey
 data is coarser than the grid there.

@@ -49,12 +49,14 @@ nonisolated struct ChartPainter: Sendable {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: format)
         let image = renderer.image { context in
             UIImage(cgImage: raster).draw(at: .zero)
-            if !region.landRings.isEmpty { drawLand(projection, in: context.cgContext) }
+            if style.paintLand, !region.landRings.isEmpty { drawLand(projection, in: context.cgContext) }
             guard detailed else { return }
             // Points → pixels: a tile is shown 256 points wide.
             let k = Double(size) / 256
             if z >= 14 { drawSoundings(projection, k: k) }
-            if style.seamarks && z >= 11 { drawSeamarks(projection, z: z, k: k) }
+            var labels: [CGRect] = []
+            if style.seamarks && z >= 11 { drawSeamarks(projection, z: z, k: k, labels: &labels) }
+            if z >= 11 { drawNames(projection, z: z, k: k, labels: &labels) }
         }
         return image.cgImage
     }
@@ -128,7 +130,8 @@ nonisolated struct ChartPainter: Sendable {
                         colour = vectorLand ? water(0) : land
                     } else {
                         colour = water(d)
-                        if !style.paintLand { alpha = 150 }
+                        // Over satellite imagery only shallows get a tint; contours and marks do the rest.
+                        if !style.paintLand { alpha = d < safety ? 110 : 0 }
                         if showContours, !isLand[i + 1], !isLand[i + stride] {
                             let right = depth[i + 1], below = depth[i + stride]
                             if (d < safety) != (right < safety) || (d < safety) != (below < safety) {
@@ -210,9 +213,8 @@ nonisolated struct ChartPainter: Sendable {
 
     // MARK: - Seamarks
 
-    private func drawSeamarks(_ p: Projection, z: Int, k: Double) {
+    private func drawSeamarks(_ p: Projection, z: Int, k: Double, labels: inout [CGRect]) {
         let marginLon = (p.east - p.west) * 0.25, marginLat = (p.north - p.south) * 0.25
-        var labels: [CGRect] = []
         let marks = region.seamarks.filter {
             $0.longitude > p.west - marginLon && $0.longitude < p.east + marginLon &&
                 $0.latitude > p.south - marginLat && $0.latitude < p.north + marginLat
@@ -243,6 +245,45 @@ nonisolated struct ChartPainter: Sendable {
                 ns.draw(at: frame.origin, withAttributes: halo)
                 ns.draw(at: frame.origin, withAttributes: attributes)
             }
+        }
+    }
+
+    // MARK: - Names
+
+    /// Bays, straits, capes and islets in chart lettering (towns and big islands come from the base map).
+    private func drawNames(_ p: Projection, z: Int, k: Double, labels: inout [CGRect]) {
+        let marginLon = (p.east - p.west) * 0.3, marginLat = (p.north - p.south) * 0.3
+        let waterInk = style.dark ? UIColor(red: 0.55, green: 0.7, blue: 0.95, alpha: 1) : UIColor(red: 0.12, green: 0.32, blue: 0.62, alpha: 1)
+        let landInk = style.dark ? UIColor(white: 0.8, alpha: 1) : UIColor(red: 0.3, green: 0.26, blue: 0.18, alpha: 1)
+        for place in region.names where place.longitude > p.west - marginLon && place.longitude < p.east + marginLon
+            && place.latitude > p.south - marginLat && place.latitude < p.north + marginLat {
+            let minZoom: Int, size: Double, ink: UIColor
+            switch place.type {
+            case "strait": (minZoom, size, ink) = (11, 11, waterInk)
+            case "bay": (minZoom, size, ink) = (12, 10.5, waterInk)
+            case "cape": (minZoom, size, ink) = (13, 9.5, landInk)
+            case "islet": (minZoom, size, ink) = (13, 9.5, landInk)
+            case "island": (minZoom, size, ink) = (14, 10.5, landInk)
+            default: continue
+            }
+            guard z >= minZoom else { continue }
+            let font = UIFont.italicSystemFont(ofSize: size * k).withWeight(place.type == "strait" || place.type == "bay" ? .medium : .regular)
+            let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink]
+            let text = place.name as NSString
+            let box = text.size(withAttributes: attributes)
+            let at = p.point(place.longitude, place.latitude)
+            // Capes label beside the point; the rest centre on it.
+            let origin = place.type == "cape" ? CGPoint(x: at.x + 4 * k, y: at.y - box.height / 2)
+                                              : CGPoint(x: at.x - box.width / 2, y: at.y - box.height / 2)
+            let frame = CGRect(origin: origin, size: box)
+            guard !labels.contains(where: { $0.intersects(frame) }) else { continue }
+            labels.append(frame)
+            let halo: [NSAttributedString.Key: Any] = [
+                .font: font, .strokeWidth: 5.0,
+                .strokeColor: style.dark ? UIColor(white: 0, alpha: 0.5) : UIColor(white: 1, alpha: 0.75),
+            ]
+            text.draw(at: origin, withAttributes: halo)
+            text.draw(at: origin, withAttributes: attributes)
         }
     }
 
@@ -462,5 +503,12 @@ nonisolated struct Projection {
 
     func point(_ lon: Double, _ lat: Double) -> CGPoint {
         CGPoint(x: (lon - west) / (east - west) * size, y: (mercTop - Self.merc(lat)) / (mercTop - mercBottom) * size)
+    }
+}
+
+private extension UIFont {
+    nonisolated func withWeight(_ weight: UIFont.Weight) -> UIFont {
+        let descriptor = fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
+        return UIFont(descriptor: descriptor, size: pointSize)
     }
 }

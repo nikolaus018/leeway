@@ -71,13 +71,13 @@ struct ChartMapView: UIViewRepresentable {
         map.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (map: MKMapView, _: UITraitCollection) in
             coordinator.applyChart(to: map)
         }
-        context.coordinator.harbours = regions.flatMap { $0.seamarks.filter(\.isHarbourLike) }.map(SeamarkAnnotation.init)
         return map
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
         let c = context.coordinator
         c.parent = self
+        c.syncRegions(regions, on: map)
         c.applyBase(base, to: map)
         c.applyChart(to: map)
         c.applySeamarks(showSeamarks, to: map)
@@ -119,6 +119,19 @@ struct ChartMapView: UIViewRepresentable {
         private var inspectAnnotation: InspectAnnotation?
         var harbours: [SeamarkAnnotation] = []
         private var harboursShown = false
+        private var loadedRegions: [String] = []
+
+        /// Charts arrive after launch; rebuild what depends on them.
+        func syncRegions(_ regions: [ChartRegion], on map: MKMapView) {
+            let ids = regions.map(\.id)
+            guard ids != loadedRegions else { return }
+            loadedRegions = ids
+            if harboursShown { map.removeAnnotations(harbours) }
+            harbours = regions.flatMap { $0.seamarks.filter(\.isHarbourLike) }.map(SeamarkAnnotation.init)
+            if harboursShown { map.addAnnotations(harbours) }
+            depthKey = nil
+            seamarkKey = nil
+        }
         private var currentTracking = AppModel.UserTracking.none
 
         init(_ parent: ChartMapView) { self.parent = parent }
@@ -130,10 +143,6 @@ struct ChartMapView: UIViewRepresentable {
             case .chart:
                 let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
                 config.pointOfInterestFilter = MKPointOfInterestFilter(including: [.marina, .beach, .gasStation])
-                map.preferredConfiguration = config
-            case .standard:
-                let config = MKStandardMapConfiguration()
-                config.pointOfInterestFilter = MKPointOfInterestFilter(including: [.marina, .beach, .gasStation, .restaurant, .store])
                 map.preferredConfiguration = config
             case .satellite:
                 map.preferredConfiguration = MKHybridMapConfiguration(elevationStyle: .flat)

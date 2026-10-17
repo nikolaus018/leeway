@@ -3,3 +3,4 @@ build/
 .DS_Store
 .venv/
 tools/*-preview.png
+tools/.overpass-cache/

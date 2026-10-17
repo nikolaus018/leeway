@@ -95,20 +95,11 @@ struct BoatProfile: Codable, Equatable {
 }
 
 enum MapBase: String, CaseIterable, Identifiable, Codable {
-    case chart, standard, satellite
+    /// The offline paper-chart look (base map only outside chart coverage).
+    case chart
+    /// Satellite imagery with depth contours, shallows, soundings and seamarks on top.
+    case satellite
     var id: Self { self }
-    var label: String {
-        switch self {
-        case .chart: "Chart"
-        case .standard: "Standard"
-        case .satellite: "Satellite"
-        }
-    }
-    var symbol: String {
-        switch self {
-        case .chart: "map"
-        case .standard: "map.fill"
-        case .satellite: "globe.europe.africa.fill"
-        }
-    }
+    var label: String { self == .chart ? "Chart" : "Satellite" }
+    var symbol: String { self == .chart ? "map" : "globe.europe.africa.fill" }
 }

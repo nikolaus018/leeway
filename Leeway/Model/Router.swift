@@ -60,8 +60,17 @@ nonisolated final class RoutingGrid: Sendable {
     /// Extra headroom wanted under a bridge, metres.
     static let bridgeMargin = 1.0
 
+    /// Most cells a routing window may hold before it's coarsened (memory and speed on a phone).
+    static let maxCells = 6_000_000
+
     let rules: NavigationRules
     var region: ChartRegion { rules.region }
+    /// The window of the chart this grid covers, in chart cells, and how many chart cells make one routing cell.
+    let originRow, originCol, rows, cols, factor: Int
+    /// Size of a routing cell in nautical miles.
+    let cellNM: (dx: Double, dy: Double)
+    /// Not land (shallow water counts as water).
+    let water: [Bool]
     /// Water cells closed by a charted danger or a bridge that's too low.
     let blocked: [Bool]
     /// Distance in cells to the nearest land or too-shallow cell, capped. 0 = not navigable.
@@ -71,18 +80,64 @@ nonisolated final class RoutingGrid: Sendable {
     /// The largest connected area — the open sea.
     let seaComponent: Int32
 
-    init(rules: NavigationRules) {
+    /// A routing grid for the part of the chart around `points`. Long passages get a coarser grid.
+    init(rules: NavigationRules, around points: [CLLocationCoordinate2D]) {
         self.rules = rules
         let region = rules.region, safetyDepth = rules.safetyDepth, airDraft = rules.airDraft
         let minimumCode = UInt8(min(250, (safetyDepth * 2).rounded(.up)))
-        let rows = region.rows, cols = region.cols
+
+        // Window: the waypoints' box plus room to go around islands.
+        let lats = points.map(\.latitude), lons = points.map(\.longitude)
+        let spanLat = (lats.max() ?? 0) - (lats.min() ?? 0), spanLon = (lons.max() ?? 0) - (lons.min() ?? 0)
+        let padLat = max(10.0 / 60, spanLat * 0.3), padLon = max(10.0 / 60 / cos(region.north.radians), spanLon * 0.3)
+        let top = region.cell(row: (lats.max() ?? region.north) + padLat), bottom = region.cell(row: (lats.min() ?? region.south) - padLat)
+        let left = region.cell(col: (lons.min() ?? region.west) - padLon), right = region.cell(col: (lons.max() ?? region.east) + padLon)
+        let fineRows = bottom - top + 1, fineCols = right - left + 1
+        let factor = max(1, Int((Double(fineRows * fineCols) / Double(Self.maxCells)).squareRoot().rounded(.up)))
+        let rows = (fineRows + factor - 1) / factor, cols = (fineCols + factor - 1) / factor
+        originRow = top; originCol = left
+        self.rows = rows; self.cols = cols; self.factor = factor
+        cellNM = (region.cellNM.dx * Double(factor), region.cellNM.dy * Double(factor))
+
+        // Each routing cell is water/deep if at least half the chart cells in it are.
+        var water = [Bool](repeating: false, count: rows * cols)
+        var deep = [Bool](repeating: false, count: rows * cols)
+        region.grid.withUnsafeBufferPointer { grid in
+            for r in 0..<rows {
+                for c in 0..<cols {
+                    var land = 0, ok = 0, n = 0
+                    for rr in 0..<factor {
+                        let R = top + r * factor + rr
+                        guard R < region.rows else { break }
+                        for cc in 0..<factor {
+                            let C = left + c * factor + cc
+                            guard C < region.cols else { break }
+                            let code = grid[R * region.cols + C]
+                            n += 1
+                            if code == ChartRegion.landCode { land += 1 } else if code >= minimumCode { ok += 1 }
+                        }
+                    }
+                    water[r * cols + c] = n > 0 && land * 2 < n
+                    deep[r * cols + c] = n > 0 && ok * 2 >= n
+                }
+            }
+        }
+        self.water = water
 
         var closed = [Bool](repeating: false, count: rows * cols)
+        let localPoint = { (c: CLLocationCoordinate2D) -> (x: Double, y: Double) in
+            let p = region.gridPoint(c)
+            return ((p.x - Double(left)) / Double(factor), (p.y - Double(top)) / Double(factor))
+        }
         for danger in rules.dangers {
-            let p = region.gridPoint(danger.center)
-            let rx = danger.radius / (region.cellNM.dx * 1852), ry = danger.radius / (region.cellNM.dy * 1852)
-            for r in max(0, Int(p.y - ry))...min(rows - 1, Int(p.y + ry)) {
-                for c in max(0, Int(p.x - rx))...min(cols - 1, Int(p.x + rx)) {
+            let p = localPoint(danger.center)
+            guard p.x > -2, p.y > -2, p.x < Double(cols) + 2, p.y < Double(rows) + 2 else { continue }
+            let rx = danger.radius / (cellNM.dx * 1852), ry = danger.radius / (cellNM.dy * 1852)
+            let r0 = max(0, Int(p.y - ry)), r1 = min(rows - 1, Int(p.y + ry))
+            let c0 = max(0, Int(p.x - rx)), c1 = min(cols - 1, Int(p.x + rx))
+            guard r0 <= r1, c0 <= c1 else { continue }
+            for r in r0...r1 {
+                for c in c0...c1 {
                     let nx = (Double(c) + 0.5 - p.x) / rx, ny = (Double(r) + 0.5 - p.y) / ry
                     if nx * nx + ny * ny <= 1 || (r == Int(p.y) && c == Int(p.x)) { closed[r * cols + c] = true }
                 }
@@ -91,7 +146,7 @@ nonisolated final class RoutingGrid: Sendable {
         for bridge in region.bridges {
             guard let height = bridge.clearance, height < airDraft + Self.bridgeMargin else { continue }
             for (a, b) in zip(bridge.coordinates, bridge.coordinates.dropFirst()) {
-                let p = region.gridPoint(a), q = region.gridPoint(b)
+                let p = localPoint(a), q = localPoint(b)
                 let steps = max(1, Int((hypot(q.x - p.x, q.y - p.y) / 0.25).rounded(.up)))
                 for s in 0...steps {
                     let t = Double(s) / Double(steps)
@@ -104,8 +159,7 @@ nonisolated final class RoutingGrid: Sendable {
 
         var d = [UInt8](repeating: 0, count: rows * cols)
         for i in 0..<(rows * cols) {
-            let code = region.grid[i]
-            d[i] = code == ChartRegion.landCode || code < minimumCode || closed[i] ? 0 : Self.maxClearance
+            d[i] = deep[i] && !closed[i] ? Self.maxClearance : 0
         }
         // Two-pass chamfer distance (chessboard metric).
         d.withUnsafeMutableBufferPointer { d in
@@ -165,8 +219,41 @@ nonisolated final class RoutingGrid: Sendable {
 
     func isNavigable(_ i: Int) -> Bool { clearance[i] > 0 }
     /// Water the boat can creep through at low speed (shallow is allowed, dangers and low bridges aren't).
-    func isPassable(_ i: Int) -> Bool { region.grid[i] != ChartRegion.landCode && !blocked[i] }
+    func isPassable(_ i: Int) -> Bool { water[i] && !blocked[i] }
     func isOpenWater(_ i: Int) -> Bool { component[i] == seaComponent }
+
+    /// A coarse grid built for a long passage is too blunt once the route shrinks to a short hop.
+    func isTooLoose(for points: [CLLocationCoordinate2D]) -> Bool {
+        guard factor > 1 else { return false }
+        return RoutingGrid.factor(for: points, in: region) < factor
+    }
+
+    static func factor(for points: [CLLocationCoordinate2D], in region: ChartRegion) -> Int {
+        let lats = points.map(\.latitude), lons = points.map(\.longitude)
+        let spanLat = (lats.max() ?? 0) - (lats.min() ?? 0), spanLon = (lons.max() ?? 0) - (lons.min() ?? 0)
+        let padLat = max(10.0 / 60, spanLat * 0.3), padLon = max(10.0 / 60 / cos(region.north.radians), spanLon * 0.3)
+        let rows = region.cell(row: (lats.min() ?? 0) - padLat) - region.cell(row: (lats.max() ?? 0) + padLat) + 1
+        let cols = region.cell(col: (lons.max() ?? 0) + padLon) - region.cell(col: (lons.min() ?? 0) - padLon) + 1
+        return max(1, Int((Double(rows * cols) / Double(maxCells)).squareRoot().rounded(.up)))
+    }
+
+    /// Fractional position (column, row) in this grid; cell centres are at .5.
+    func gridPoint(_ c: CLLocationCoordinate2D) -> (x: Double, y: Double) {
+        let p = region.gridPoint(c)
+        return ((p.x - Double(originCol)) / Double(factor), (p.y - Double(originRow)) / Double(factor))
+    }
+
+    func index(of c: CLLocationCoordinate2D) -> Int? {
+        let p = gridPoint(c)
+        guard p.x >= 0, p.y >= 0, Int(p.x) < cols, Int(p.y) < rows else { return nil }
+        return Int(p.y) * cols + Int(p.x)
+    }
+
+    func center(_ i: Int) -> CLLocationCoordinate2D {
+        let r = Double(i / cols) + 0.5, c = Double(i % cols) + 0.5
+        return CLLocationCoordinate2D(latitude: region.north - (Double(originRow) + r * Double(factor)) * region.latStep,
+                                      longitude: region.west + (Double(originCol) + c * Double(factor)) * region.lonStep)
+    }
 }
 
 /// Automatic routing: shortest safe-water path between waypoints (A* on the depth grid,
@@ -210,11 +297,63 @@ nonisolated enum Router {
             let from = anchors[leg], to = anchors[leg + 1]
             guard let cells = aStar(from: from.cell, to: to.cell, on: grid) else { throw Failure.noPassage(leg: leg) }
             let straight = smooth(cells, on: grid)
-            let cellsOut = from.approach + straight + to.approach.reversed()
-            path += cellsOut.map(region.center(ofCell:))
+            // Harbour approaches: straighten them too, through any water that isn't closed off.
+            let approachOut = straightenApproach(from.approach + [from.cell], on: grid).dropLast()
+            let approachIn = straightenApproach([to.cell] + to.approach.reversed(), on: grid).dropFirst()
+            path += (approachOut + straight + approachIn).map(grid.center)
             path.append(waypoints[leg + 1])
         }
-        return Result(path: dedupe(path), shallowConnections: shallow)
+        path = dedupe(path)
+        if grid.factor > 1 { path = refine(path, rules: grid.rules) }
+        return Result(path: path, shallowConnections: shallow)
+    }
+
+    /// A coarse grid (long passages) can graze shallows; re-route any such leg at full detail.
+    private static func refine(_ path: [CLLocationCoordinate2D], rules: NavigationRules) -> [CLLocationCoordinate2D] {
+        guard path.count > 2 else { return path }
+        var out = [path[0]]
+        for (k, (a, b)) in zip(path, path.dropFirst()).enumerated() {
+            let touchesWaypoint = k == 0 || k == path.count - 2
+            if touchesWaypoint || hazard(from: a, to: b, rules: rules) == nil {
+                out.append(b)
+                continue
+            }
+            let fine = RoutingGrid(rules: rules, around: [a, b])
+            if fine.factor == 1, let detour = try? route(through: [a, b], on: fine) {
+                out += detour.path.dropFirst()
+            } else {
+                out.append(b)
+            }
+        }
+        return dedupe(out)
+    }
+
+    /// String-pulls a cell path through passable water (shallow allowed, land and closed cells not).
+    private static func straightenApproach(_ cells: [Int], on grid: RoutingGrid) -> [Int] {
+        guard cells.count > 2 else { return cells }
+        var result = [cells[0]]
+        var i = 0
+        while i < cells.count - 1 {
+            var best = i + 1
+            for j in (i + 1)..<cells.count where visible(cells[i], cells[j], on: grid, through: grid.isPassable) {
+                best = j
+            }
+            result.append(cells[best])
+            i = best
+        }
+        return result
+    }
+
+    private static func visible(_ a: Int, _ b: Int, on grid: RoutingGrid, through ok: (Int) -> Bool) -> Bool {
+        let cols = grid.cols
+        let ax = Double(a % cols) + 0.5, ay = Double(a / cols) + 0.5
+        let bx = Double(b % cols) + 0.5, by = Double(b / cols) + 0.5
+        let steps = max(1, Int((hypot(bx - ax, by - ay) / 0.3).rounded(.up)))
+        for s in 0...steps {
+            let t = Double(s) / Double(steps)
+            if !ok(Int(ay + (by - ay) * t) * cols + Int(ax + (bx - ax) * t)) { return false }
+        }
+        return true
     }
 
     /// Checks a straight leg for land, shallows, charted dangers and low bridges.
@@ -298,9 +437,8 @@ nonisolated enum Router {
 
     private static func aStar(from start: Int, to goal: Int, on grid: RoutingGrid) -> [Int]? {
         if start == goal { return [start] }
-        let region = grid.region
-        let rows = region.rows, cols = region.cols, count = rows * cols
-        let dx = Float(region.cellNM.dx), dy = Float(region.cellNM.dy)
+        let rows = grid.rows, cols = grid.cols, count = rows * cols
+        let dx = Float(grid.cellNM.dx), dy = Float(grid.cellNM.dy)
         let diagonal = (dx * dx + dy * dy).squareRoot()
         let goalRow = goal / cols, goalCol = goal % cols
 
@@ -386,7 +524,7 @@ nonisolated enum Router {
     }
 
     private static func lineOfSight(_ a: Int, _ b: Int, needed: UInt8, on grid: RoutingGrid) -> Bool {
-        let cols = grid.region.cols
+        let cols = grid.cols
         let ax = Double(a % cols) + 0.5, ay = Double(a / cols) + 0.5
         let bx = Double(b % cols) + 0.5, by = Double(b / cols) + 0.5
         let steps = max(1, Int((hypot(bx - ax, by - ay) / 0.3).rounded(.up)))
@@ -401,14 +539,13 @@ nonisolated enum Router {
     /// Finds the nearest safe-water cell reachable through water from a point.
     /// Returns the cell and the shallow-water cells leading to it (empty if the point is already in safe water).
     private static func safeWaterAccess(from point: CLLocationCoordinate2D, on grid: RoutingGrid) -> (cell: Int, approach: [Int])? {
-        let region = grid.region
-        guard var start = region.cell(point) else { return nil }
+        guard var start = grid.index(of: point) else { return nil }
         if grid.isOpenWater(start) { return (start, []) }
 
-        let cols = region.cols, rows = region.rows
+        let cols = grid.cols, rows = grid.rows
         // Points on land (e.g. a quay the coarse grid calls land): hop to the nearest water cell first.
-        if region.grid[start] == ChartRegion.landCode {
-            guard let water = nearest(to: start, within: 15, on: region, where: { region.grid[$0] != ChartRegion.landCode }) else { return nil }
+        if !grid.water[start] {
+            guard let water = nearest(to: start, within: 15, on: grid, where: { grid.water[$0] }) else { return nil }
             start = water
         }
 
@@ -436,19 +573,19 @@ nonisolated enum Router {
             }
         }
         // Enclosed in the grid (e.g. a basin the coarse data closes off): take the nearest safe cell outright.
-        guard let cell = nearest(to: start, within: 60, on: region, where: grid.isOpenWater) else { return nil }
+        guard let cell = nearest(to: start, within: 60, on: grid, where: grid.isOpenWater) else { return nil }
         return (cell, [])
     }
 
-    private static func nearest(to index: Int, within radius: Int, on region: ChartRegion, where accept: (Int) -> Bool) -> Int? {
-        let cols = region.cols, rows = region.rows
+    private static func nearest(to index: Int, within radius: Int, on grid: RoutingGrid, where accept: (Int) -> Bool) -> Int? {
+        let cols = grid.cols, rows = grid.rows
         let r0 = index / cols, c0 = index % cols
         var best: (Int, Double)?
         for r in max(0, r0 - radius)...min(rows - 1, r0 + radius) {
             for c in max(0, c0 - radius)...min(cols - 1, c0 + radius) {
                 let i = r * cols + c
                 guard accept(i) else { continue }
-                let d = hypot(Double(r - r0) * region.cellNM.dy, Double(c - c0) * region.cellNM.dx)
+                let d = hypot(Double(r - r0) * grid.cellNM.dy, Double(c - c0) * grid.cellNM.dx)
                 if best == nil || d < best!.1 { best = (i, d) }
             }
         }

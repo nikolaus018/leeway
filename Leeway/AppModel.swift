@@ -73,7 +73,8 @@ final class AppModel {
     private(set) var localForecast: RouteForecast?
     private var localForecastFetched: (coordinate: CLLocationCoordinate2D, at: Date)?
 
-    let regions = ChartRegion.bundled()
+    /// Offline charts; loaded in the background at launch (the Adriatic grid is ~40 MB).
+    private(set) var regions: [ChartRegion] = []
     let location = LocationTracker()
     /// Bumped to ask the map to frame the route.
     private(set) var fitRouteRequest = 0
@@ -95,6 +96,10 @@ final class AppModel {
         showSeamarks = Self.load("seamarks") ?? true
         showDepth = Self.load("depth") ?? true
         showGrid = Self.load("grid") ?? false
+        Task {
+            regions = await Task.detached(priority: .userInitiated) { ChartRegion.bundled() }.value
+            routeChanged()
+        }
         #if DEBUG
         loadDebugRoute()
         #endif
@@ -247,7 +252,7 @@ final class AppModel {
         routeTask = Task {
             try? await Task.sleep(for: .milliseconds(120)) // coalesce drags
             guard !Task.isCancelled else { return }
-            let grid = await routingGrid(for: region, safetyDepth: safetyDepth, airDraft: airDraft)
+            let grid = await routingGrid(for: region, safetyDepth: safetyDepth, airDraft: airDraft, around: points)
             let result = await Task.detached(priority: .userInitiated) {
                 Result { try Router.route(through: points, on: grid) }
             }.value
@@ -275,13 +280,17 @@ final class AppModel {
         routeNotes = rules.map { Router.notes(for: points, rules: $0) } ?? []
     }
 
-    private func routingGrid(for region: ChartRegion, safetyDepth: Double, airDraft: Double) async -> RoutingGrid {
+    /// The routing grid around the route; reused while waypoints stay inside the same window.
+    private func routingGrid(for region: ChartRegion, safetyDepth: Double, airDraft: Double,
+                             around points: [CLLocationCoordinate2D]) async -> RoutingGrid {
         let key = "\(region.id)@\(safetyDepth)@\(airDraft)"
-        if let grid = grids[key] { return grid }
+        if let grid = grids[key], points.allSatisfy({ grid.index(of: $0) != nil }), !grid.isTooLoose(for: points) {
+            return grid
+        }
         let grid = await Task.detached(priority: .userInitiated) {
-            RoutingGrid(rules: NavigationRules(region: region, safetyDepth: safetyDepth, airDraft: airDraft))
+            RoutingGrid(rules: NavigationRules(region: region, safetyDepth: safetyDepth, airDraft: airDraft), around: points)
         }.value
-        grids[key] = grid
+        grids = [key: grid]
         return grid
     }
 
