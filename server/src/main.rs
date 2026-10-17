@@ -446,14 +446,24 @@ fn tile_response(headers: &HeaderMap, blob: &Blob, content_type: &'static str, p
     http::bytes(headers, blob.data.clone(), &blob.etag, content_type, policy)
 }
 
+#[derive(Deserialize)]
+struct SkipQuery {
+    /// Chart pack boxes the app draws its own seamarks in: `w,s,e,n;…`.
+    skip: Option<String>,
+}
+
 async fn seamark_tile(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path((z, x, y)): Path<(u32, u32, String)>,
+    Query(q): Query<SkipQuery>,
 ) -> Result<Response, ApiError> {
     let (z, x, y) = tile_path(z, x, &y, ".png")?;
     if z > tiles::MAX_ZOOM {
         return Err(ApiError::not_found());
+    }
+    if q.skip.as_deref().is_some_and(|spec| tiles::covered(z, x, y, &tiles::parse_skip(spec))) {
+        return Ok(http::empty(Policy::TILE));
     }
     let blob = state.seamarks.tile(z, x, y).await?;
     Ok(tile_response(&headers, &blob, "image/png", Policy::TILE))

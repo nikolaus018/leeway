@@ -13,6 +13,30 @@ use crate::{
 
 pub const MAX_ZOOM: u32 = 18;
 
+/// West, south, east, north of tile z/x/y in degrees.
+pub fn bounds(z: u32, x: u32, y: u32) -> [f64; 4] {
+    let n = (1u64 << z) as f64;
+    let lat = |t: f64| (std::f64::consts::PI * (1.0 - 2.0 * t / n)).sinh().atan().to_degrees();
+    [x as f64 / n * 360.0 - 180.0, lat(y as f64 + 1.0), (x as f64 + 1.0) / n * 360.0 - 180.0, lat(y as f64)]
+}
+
+/// Boxes (`w,s,e,n;w,s,e,n`) the app draws its own seamarks in, from a chart pack.
+pub fn parse_skip(spec: &str) -> Vec<[f64; 4]> {
+    spec.split(';')
+        .filter_map(|b| {
+            let v: Vec<f64> = b.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+            (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+        })
+        .take(32)
+        .collect()
+}
+
+/// The tile lies wholly inside one of the boxes.
+pub fn covered(z: u32, x: u32, y: u32, boxes: &[[f64; 4]]) -> bool {
+    let [w, s, e, n] = bounds(z, x, y);
+    boxes.iter().any(|b| w >= b[0] && s >= b[1] && e <= b[2] && n <= b[3])
+}
+
 pub struct SeamarkTiles {
     http: reqwest::Client,
     config: Arc<Config>,
@@ -56,5 +80,21 @@ impl SeamarkTiles {
             204 | 404 => Ok(None),
             status => Err(anyhow!("{url} answered {status}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skips_tiles_inside_packs() {
+        let boxes = parse_skip("13.2,42.2,19.0,45.57;bad");
+        assert_eq!(boxes.len(), 1);
+        // z10 tile over Kvarner is inside, a z6 tile reaching beyond is not.
+        assert!(covered(10, 553, 367, &boxes));
+        assert!(!covered(6, 34, 22, &boxes));
+        let [w, s, e, n] = bounds(0, 0, 0);
+        assert!((w + 180.0).abs() < 1e-9 && (e - 180.0).abs() < 1e-9 && (n - 85.0511).abs() < 1e-3 && s < -85.0);
     }
 }

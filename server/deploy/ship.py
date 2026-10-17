@@ -36,6 +36,8 @@ SESSION_FILE = Path.home() / ".config" / "venvy" / f"{urllib.parse.urlparse(VENV
 # Folders this script owns on the server: files there that aren't local any more are deleted.
 MANAGED = ("src", "styles", "charts", ".cargo")
 CHUNK = 8 * 1024 * 1024
+# Cloudflare turns away Python's default User-Agent (error 1010).
+USER_AGENT = "seadata-deploy/1.0 (+https://github.com/nikolaus018/leeway)"
 
 
 def say(message):
@@ -57,6 +59,7 @@ class Venvy:
     def __init__(self):
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
+        self.opener.addheaders = [("User-Agent", USER_AGENT)]
         self.key = ""
 
     def _cookie(self, name):
@@ -242,12 +245,13 @@ def ship():
     down = 0
     for _ in range(150):
         try:
-            with urllib.request.urlopen(health, timeout=5) as response:
+            with urllib.request.urlopen(urllib.request.Request(health, headers={"User-Agent": USER_AGENT}), timeout=5) as response:
                 uptime = json.loads(response.read()).get("uptimeSeconds", 1e9)
             # Only the new process counts: it must have started after the restart was sent.
             if uptime <= time.time() - sent + 1:
                 say(f"Live: https://{PUBLIC_HOST}/v1/info")
-                with urllib.request.urlopen(f"https://{PUBLIC_HOST}/v1/info", timeout=10) as response:
+                info = urllib.request.Request(f"https://{PUBLIC_HOST}/v1/info", headers={"User-Agent": USER_AGENT})
+                with urllib.request.urlopen(info, timeout=10) as response:
                     print(response.read().decode())
                 return
         except (urllib.error.URLError, TimeoutError, ValueError):

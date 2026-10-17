@@ -13,9 +13,10 @@ With --osm (Geofabrik country extracts, needs `pip install osmium`) everything O
 without it the Overpass API is queried tile by tile. Coast not covered by the extracts (e.g. Italy across
 the Adriatic) is taken from EMODnet's land heights.
 
-Outputs Leeway/Charts/<id>.depth (raw-deflate UInt8 grid, row 0 = north),
-Leeway/Charts/<id>.land (raw-deflate coastline polygons for crisp drawing) and
-Leeway/Charts/<id>.json (grid metadata + seamarks).
+Outputs Leeway/Charts/<id>.depth (raw-deflate UInt8 grid, row 0 = north, used for routing),
+Leeway/Charts/<id>.land (raw-deflate coastline polygons), Leeway/Charts/<id>.json (grid metadata +
+seamarks), and Leeway/Charts/<id>.pmtiles, the vector chart the app draws (see build_vector.py; needs
+tippecanoe).
 
 Data: EMODnet Bathymetry (CC BY 4.0), © OpenStreetMap contributors (ODbL).
 """
@@ -493,6 +494,9 @@ def main():
 
     preview = np.where(is_land, 200, np.clip(255 - code, 0, 255)).astype(np.uint8)[::4, ::4]
     Image.fromarray(preview).save(out.parent.parent / "tools" / f"{region_id}-preview.png")
+
+    from build_vector import build
+    build(region_id, osm_paths)
 
 
 if __name__ == "__main__":
