@@ -41,7 +41,53 @@ and the Bay of Kotor (13.2–19.0°E, 42.2–45.57°N), plus the Italian shore o
 - Either mode is timed with forecast wind (Open-Meteo), tidal streams and waves (Open-Meteo marine), and a sailing
   performance curve. A best-departure chart covers the next 3 days.
 
-**Underway**: SOG/COG readout, GPS track recording (also in the background), and saved routes.
+**Underway**: SOG/COG readout, GPS track recording (also in the background), saved routes, route following
+with cross-track error and ETAs, man overboard, anchor watch, and a Live Activity for all three.
+
+**Live layers** (layers button → Live)
+- **Wind forecast**: arrows on a grid over the visible chart, coloured by strength, with a time bar to step through
+  the next four days.
+- **Ships (AIS)**: live positions from aisstream.io. Tap a ship for its name, type, speed, course, destination and
+  closest point of approach; ships that will pass within 0.5 NM in the next 20 minutes turn red.
+
+**Data & charts** (antenna button in the sheet): the data server address (default `https://seadata.ringtwo.win`),
+a connection test, and offline chart packs to download or update from the server.
+
+## Data server
+
+Everything external comes through `server/`, a small Rust service ("seadata"). It caches every source, so many
+phones cost the upstream services little, and the app gets one consistent format:
+
+| Endpoint | What |
+| --- | --- |
+| `GET /v1/forecast?points=lat,lon;…` | Hourly wind (ICON-2I, then ICON-EU, then global, finest per hour), gusts, waves, swell, currents, sea and air temperature, pressure, rain |
+| `GET /v1/wind-grid?west&south&east&north` | Wind and waves on a grid for map arrows; the whole sailing area is kept warm in the background |
+| `GET /v1/tiles/seamark/{z}/{x}/{y}.png` | OpenSeaMap seamark tiles, disk-cached |
+| `GET /v1/charts`, `/v1/charts/files/{name}` | Offline chart packs |
+| `GET /v1/ais?west&south&east&north` | Live vessels (needs `AISSTREAM_API_KEY`) |
+| `GET /v1/info`, `/health` | Capabilities, liveness |
+
+If the server can't be reached, the app fetches forecasts and seamarks straight from Open-Meteo and OpenSeaMap.
+
+```bash
+cd server
+cargo test
+cargo run          # http://localhost:8790, serves the charts in Leeway/Charts
+```
+
+Settings are environment variables: `PORT`, `CHARTS_DIR`, `CACHE_DIR`, `AISSTREAM_API_KEY`, `AIS_BBOX`
+(south,west,north,east of the sailing area), `OPEN_METEO_API_KEY` (commercial plan; the free API is non-commercial).
+It builds with Rust 1.85 or newer.
+
+**Deploy** to the Venvy instance at `venvy.ringtwo.win`, published at `https://seadata.ringtwo.win`:
+
+```bash
+VENVY_USER=… VENVY_PASSWORD=… server/deploy/venvy.sh
+```
+
+The script creates or updates the `seadata` app (Rust runtime, port 8790, restart always), uploads the code and the
+chart packs, restarts it, publishes the hostname through Venvy's Cloudflare tunnel and waits until the new process
+answers. Run it again after every change.
 
 ## Build
 
@@ -90,19 +136,24 @@ data is coarser than the grid there.
 | Area | File |
 | --- | --- |
 | Chart pack loading, depth lookup | `Leeway/Model/ChartRegion.swift` |
+| Chart pack downloads | `Leeway/Services/ChartStore.swift` |
 | Safe-water grid, A* routing, leg hazard checks | `Leeway/Model/Router.swift` |
-| Chart tile rendering, lat/lon grid | `Leeway/Map/DepthTileOverlay.swift` |
-| Map wrapper, overlays, taps | `Leeway/Map/ChartMapView.swift`, `Annotations.swift` |
+| Chart tile rendering, lat/lon grid, seamark tiles | `Leeway/Map/ChartPainter.swift`, `ChartOverlay.swift` |
+| Map wrapper, overlays, taps | `Leeway/Map/ChartMapView.swift`, `Annotations.swift`, `LiveAnnotations.swift` |
 | Passage timing, departure ranking | `Leeway/Model/PassageSimulator.swift`, `Polar.swift` |
+| Data server client (forecast, wind grid, AIS, charts) | `Leeway/Services/Seadata.swift` |
 | Forecasts | `Leeway/Services/MarineWeatherService.swift` |
+| Navigation, MOB, anchor watch | `Leeway/Services/Underway.swift`, `LiveActivityController.swift` |
 | App state | `Leeway/AppModel.swift` |
 | UI | `Leeway/Views/*` |
+| Data server | `server/src/*` |
 
 ## Known limits
 
 - **Not for navigation.** The depth data is a ~115 m survey grid. It doesn't show isolated rocks, shoals or wrecks smaller
   than that, and narrow passages (such as the Osor canal) are closed. The router avoids only the rocks and wrecks mapped in OSM.
-- Only the bundled region has depths and automatic routing. Elsewhere you get the base map, OpenSeaMap symbols and manual routes.
+- Only regions with a chart pack have depths and automatic routing. Elsewhere you get the base map, OpenSeaMap symbols and manual routes.
+- AIS comes from aisstream.io's volunteer receivers: coverage has gaps and positions can be a minute old. Keep a lookout.
 - Routing picks the shortest safe path. It doesn't yet optimise for wind or tide the way savvy navvy does.
 - The Open-Meteo current data (~8 km) misses small-scale tidal effects close inshore. Tides are small in the Adriatic anyway.
 - For release, OpenSeaMap tiles and Open-Meteo need their usage and commercial terms checked. Official ENC data (for example
@@ -110,5 +161,5 @@ data is coarser than the grid there.
 
 ## Next steps
 
-Avoid charted rocks and wrecks when routing; add weather-optimised (isochrone) routing; download chart packs in the app;
-show light sectors, restricted areas and nature of seabed; import GPX files and real polars; AIS; anchor alarm.
+Weather-optimised (isochrone) routing; more chart packs (Ionian, Tyrrhenian); light sectors, restricted areas and nature
+of seabed; GPX import/export and real polars; official weather warnings (DHMZ) on the data server.

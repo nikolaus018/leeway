@@ -62,9 +62,8 @@ nonisolated struct Seadata: Sendable, Equatable {
     }
 
     func vessels(in box: GeoBox) async throws -> [Vessel] {
-        struct Response: Decodable { let vessels: [Vessel] }
         do {
-            let response: Response = try await get("v1/ais", box.queryItems)
+            let response: VesselsResponse = try await get("v1/ais", box.queryItems)
             return response.vessels
         } catch Failure.status(501, _) {
             throw Failure.noAIS
@@ -72,8 +71,7 @@ nonisolated struct Seadata: Sendable, Equatable {
     }
 
     func charts() async throws -> [ChartPackInfo] {
-        struct Response: Decodable { let charts: [ChartPackInfo] }
-        let response: Response = try await get("v1/charts")
+        let response: ChartsResponse = try await get("v1/charts")
         return response.charts
     }
 
@@ -92,12 +90,15 @@ nonisolated struct Seadata: Sendable, Equatable {
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
-            struct ErrorBody: Decodable { let error: String }
             throw Failure.status(status, (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error)
         }
         return try JSONDecoder().decode(T.self, from: data)
     }
 }
+
+nonisolated private struct VesselsResponse: Decodable { let vessels: [Vessel] }
+nonisolated private struct ChartsResponse: Decodable { let charts: [ChartPackInfo] }
+nonisolated private struct ErrorBody: Decodable { let error: String }
 
 /// A lat/lon box, e.g. the visible part of the map.
 nonisolated struct GeoBox: Equatable, Sendable {

@@ -6,6 +6,7 @@ struct PlannerSheet: View {
     @Environment(AppModel.self) private var model
     @Binding var detent: PresentationDetent
     @State private var showingBoat = false
+    @State private var showingData = false
 
     var body: some View {
         NavigationStack {
@@ -24,6 +25,9 @@ struct PlannerSheet: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Boat", systemImage: "sailboat") { showingBoat = true }
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Data & charts", systemImage: "antenna.radiowaves.left.and.right") { showingData = true }
+                }
                 if !model.route.waypoints.isEmpty || model.isEditing {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Close route", systemImage: "xmark") { model.closeRoute() }
@@ -32,6 +36,9 @@ struct PlannerSheet: View {
             }
             .sheet(isPresented: $showingBoat) {
                 BoatSettingsView()
+            }
+            .sheet(isPresented: $showingData) {
+                DataSettingsView()
             }
         }
     }
@@ -95,7 +102,7 @@ private struct HomeList: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(model.regions, id: \.id) { region in
-                        Text("Offline chart: \(region.name). \(region.attribution) Seamark symbols: OpenSeaMap.")
+                        Text("Offline chart: \(region.name). \(region.attribution) Seamark symbols: OpenSeaMap. Weather: Open-Meteo.com.")
                     }
                     Text("Not for navigation. Always cross-check with official charts.")
                         .fontWeight(.semibold)
@@ -126,6 +133,11 @@ private struct WeatherHereSection: View {
                              + (now.waveHeight.flatMap { $0 >= 0.1 ? String(format: " · waves %.1f m", $0) : nil } ?? ""))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                        if let extras = extras(series) {
+                            Text(extras)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Chart {
@@ -167,11 +179,22 @@ private struct WeatherHereSection: View {
         } header: {
             Text(model.location.location == nil ? "Weather · Rijeka" : "Weather here")
         } footer: {
-            if let model = model.localForecast?.windModels(from: .now, to: .now.addingTimeInterval(86400)).first?.model {
-                Text("Wind and gusts (kn), next 24 h · \(model.label)")
+            if let forecast = model.localForecast, let wind = forecast.windModels(from: .now, to: .now.addingTimeInterval(86400)).first?.model {
+                Text("Wind and gusts (kn), next 24 h · \(wind.label) · via \(forecast.source)")
             }
         }
         .task(id: model.location.location == nil) { model.refreshLocalWeather() }
+    }
+
+    /// Air and sea temperature, pressure, wave period and rain now, where the data server has them.
+    private func extras(_ series: ForecastSeries) -> String? {
+        var parts: [String] = []
+        if let air = series.value(series.airTemp, at: .now) { parts.append("Air \(Int(air.rounded()))°") }
+        if let sea = series.value(series.seaTemp, at: .now) { parts.append("sea \(Int(sea.rounded()))°") }
+        if let pressure = series.value(series.pressure, at: .now) { parts.append("\(Int(pressure.rounded())) hPa") }
+        if let period = series.value(series.wavePeriod, at: .now), period > 0 { parts.append(String(format: "%.0f s period", period)) }
+        if let rain = series.value(series.precipitation, at: .now), rain >= 0.1 { parts.append(String(format: "rain %.1f mm/h", rain)) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
@@ -435,7 +458,8 @@ private struct ForecastStatus: View {
                     .font(.footnote)
                     .foregroundStyle(.orange)
             } else {
-                Label("Timed with forecast wind and tidal streams", systemImage: "wind")
+                Label("Timed with forecast wind and tidal streams" + (model.forecast.map { " · via \($0.source)" } ?? ""),
+                      systemImage: "wind")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

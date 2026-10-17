@@ -20,9 +20,11 @@ final class AppModel {
         var coordinate: CLLocationCoordinate2D
         var seamark: Seamark?
         var sounding: ChartRegion.Sounding?
+        var vessel: Vessel?
 
         static func == (a: Inspection, b: Inspection) -> Bool {
-            a.coordinate.latitude == b.coordinate.latitude && a.coordinate.longitude == b.coordinate.longitude && a.seamark == b.seamark
+            a.coordinate.latitude == b.coordinate.latitude && a.coordinate.longitude == b.coordinate.longitude
+                && a.seamark == b.seamark && a.vessel == b.vessel
         }
     }
 
@@ -51,6 +53,15 @@ final class AppModel {
     var showSeamarks: Bool { didSet { save(showSeamarks, as: "seamarks") } }
     var showDepth: Bool { didSet { save(showDepth, as: "depth") } }
     var showGrid: Bool { didSet { save(showGrid, as: "grid") } }
+    var showWind: Bool { didSet { save(showWind, as: "wind"); refreshWind() } }
+    var showAIS: Bool { didSet { save(showAIS, as: "ais"); restartAIS() } }
+    /// The data server everything external comes through.
+    var serverURL: String {
+        didSet {
+            UserDefaults.standard.set(serverURL, forKey: Seadata.defaultsKey)
+            serverChanged()
+        }
+    }
 
     // MARK: Session
 
@@ -77,6 +88,7 @@ final class AppModel {
     /// Offline charts; loaded in the background at launch (the Adriatic grid is ~40 MB).
     private(set) var regions: [ChartRegion] = []
     private var chartsLoaded = false
+    let charts = ChartStore()
     let location = LocationTracker()
     let underway = Underway()
     /// Bumped to ask the map to frame the route.
@@ -99,12 +111,12 @@ final class AppModel {
         showSeamarks = Self.load("seamarks") ?? true
         showDepth = Self.load("depth") ?? true
         showGrid = Self.load("grid") ?? false
-        Task {
-            regions = await Task.detached(priority: .userInitiated) { ChartRegion.bundled() }.value
-            chartsLoaded = true
-            routeChanged()
-        }
+        showWind = Self.load("wind") ?? false
+        showAIS = Self.load("ais") ?? false
+        serverURL = UserDefaults.standard.string(forKey: Seadata.defaultsKey) ?? Seadata.defaultURL
+        reloadCharts()
         location.onUpdate = { [weak self] fix in self?.underway.update(with: fix) }
+        charts.onChange = { [weak self] in self?.reloadCharts() }
         underway.boatName = boat.name
         syncUnderway()
         // Picking up where we left off (navigating, at anchor, MOB): show the boat.
@@ -264,6 +276,16 @@ final class AppModel {
 
     // MARK: Chart
 
+    /// Loads the offline charts (bundled and downloaded) in the background, then re-plans.
+    func reloadCharts() {
+        Task {
+            regions = await Task.detached(priority: .userInitiated) { ChartRegion.all() }.value
+            chartsLoaded = true
+            grids = [:]
+            routeChanged()
+        }
+    }
+
     func region(containing points: [CLLocationCoordinate2D]) -> ChartRegion? {
         regions.first { region in points.allSatisfy(region.contains) }
     }
@@ -274,8 +296,22 @@ final class AppModel {
                                 sounding: region(containing: [point])?.sounding(at: point))
     }
 
+    func inspect(vessel: Vessel) {
+        inspection = Inspection(coordinate: vessel.coordinate, vessel: vessel)
+    }
+
+    /// Where a ship will pass us, from both boats' course and speed (the ship dead-reckoned from its last report).
+    func approach(to vessel: Vessel) -> Approach? {
+        guard let fix = location.location, let sog = vessel.sog, let cog = vessel.cog ?? vessel.heading else { return nil }
+        let age = max(0, Date.now.timeIntervalSince(vessel.lastHeard))
+        let now = Geo.destination(from: vessel.coordinate, bearing: cog, distanceNM: sog * age / 3600)
+        return Approach.between(own: fix.coordinate, ownSOG: location.sog ?? 0, ownCOG: location.cog ?? 0,
+                                target: now, targetSOG: sog, targetCOG: cog)
+    }
+
     private func inspectionTitle(for coordinate: CLLocationCoordinate2D) -> String {
         if let mark = inspection?.seamark, let name = mark.name { return name }
+        if let vessel = inspection?.vessel { return vessel.displayName }
         return coordinate.formatted
     }
 
@@ -415,6 +451,110 @@ final class AppModel {
     var bestDeparture: DepartureOption? {
         departureOptions.min { a, b in
             a.rating != b.rating ? a.rating < b.rating : a.duration < b.duration
+        }
+    }
+
+    // MARK: Data server & live layers
+
+    enum LayerState: Equatable { case idle, loading, zoomIn, failed(String) }
+
+    private(set) var windGrid: WindGrid?
+    private(set) var windState = LayerState.idle
+    /// The hour the wind arrows show.
+    var windTime = Date.now
+    private(set) var vessels: [Vessel] = []
+    private(set) var aisState = LayerState.idle
+    /// Visible part of the map, for the live layers.
+    private(set) var visibleBox: GeoBox?
+    /// Foreground only: no AIS polling in the background.
+    var isActive = true { didSet { if isActive != oldValue { restartAIS() } } }
+    private var windTask: Task<Void, Never>?
+    private var aisTask: Task<Void, Never>?
+    private var windFetched: (box: GeoBox, at: Date)?
+
+    func mapMoved(to box: GeoBox) {
+        visibleBox = box
+        refreshWind()
+        restartAIS()
+    }
+
+    /// Moves the wind arrows by whole hours, within the forecast.
+    func stepWind(hours: Int) {
+        var next = windTime.addingTimeInterval(Double(hours) * 3600)
+        if let grid = windGrid, let start = grid.start, let end = grid.end { next = min(max(next, start), end) }
+        windTime = next
+    }
+
+    private func serverChanged() {
+        localForecastFetched = nil
+        refreshLocalWeather()
+        refreshForecast()
+        windGrid = nil
+        windFetched = nil
+        vessels = []
+        refreshWind()
+        restartAIS()
+    }
+
+    private func refreshWind() {
+        guard showWind, let box = visibleBox else {
+            windTask?.cancel()
+            return
+        }
+        // The last grid still covers this view at a fitting spacing, and isn't stale.
+        if let last = windFetched, last.box.contains(box), box.width > last.box.width / 4,
+           Date.now.timeIntervalSince(last.at) < 1800 { return }
+        windTask?.cancel()
+        let server = Seadata.current
+        let wanted = box.expanded(by: 0.3)
+        windTask = Task {
+            try? await Task.sleep(for: .milliseconds(350)) // let the map settle
+            guard !Task.isCancelled else { return }
+            windState = .loading
+            do {
+                let grid = try await server.windGrid(wanted)
+                guard !Task.isCancelled else { return }
+                windGrid = grid
+                windFetched = (wanted, .now)
+                windState = .idle
+                if grid.hour(for: windTime) == nil { windTime = .now }
+            } catch {
+                guard !Task.isCancelled else { return }
+                windState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Polls AIS for the visible area every 15 s while the layer is on and the app is in front.
+    private func restartAIS() {
+        aisTask?.cancel()
+        guard showAIS, isActive, visibleBox != nil else { return }
+        let server = Seadata.current
+        aisTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            while !Task.isCancelled {
+                guard let box = visibleBox else { return }
+                // Zoomed far out there would be thousands of ships.
+                guard box.width < 4 else {
+                    vessels = []
+                    aisState = .zoomIn
+                    return
+                }
+                do {
+                    let found = try await server.vessels(in: box.expanded(by: 0.2))
+                    guard !Task.isCancelled else { return }
+                    vessels = found
+                    aisState = .idle
+                    if let shown = inspection?.vessel, let fresh = found.first(where: { $0.mmsi == shown.mmsi }) {
+                        inspection = Inspection(coordinate: fresh.coordinate, vessel: fresh)
+                    }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    aisState = .failed(error.localizedDescription)
+                    if let failure = error as? Seadata.Failure, case .noAIS = failure { return }
+                }
+                try? await Task.sleep(for: .seconds(15))
+            }
         }
     }
 

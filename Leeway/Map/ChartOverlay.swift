@@ -160,9 +160,11 @@ nonisolated final class ChartRenderer: MKOverlayRenderer, @unchecked Sendable {
     }
 }
 
-/// OpenSeaMap seamark tiles with a disk cache, skipped where an offline chart draws its own seamarks.
+/// OpenSeaMap seamark tiles (through the data server, which caches them) with a disk cache,
+/// skipped where an offline chart draws its own seamarks.
 nonisolated final class SeamarkTileOverlay: MKTileOverlay, @unchecked Sendable {
     private let regions: [ChartRegion]
+    private static let openSeaMap = "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = URLCache(memoryCapacity: 32 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024,
@@ -172,9 +174,9 @@ nonisolated final class SeamarkTileOverlay: MKTileOverlay, @unchecked Sendable {
         return URLSession(configuration: configuration)
     }()
 
-    init(regions: [ChartRegion]) {
+    init(regions: [ChartRegion], server: Seadata) {
         self.regions = regions
-        super.init(urlTemplate: "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png")
+        super.init(urlTemplate: server.seamarkTileTemplate)
         canReplaceMapContent = false
         minimumZ = 6
         maximumZ = 18
@@ -186,7 +188,26 @@ nonisolated final class SeamarkTileOverlay: MKTileOverlay, @unchecked Sendable {
             b.west >= r.west && b.east <= r.east && b.south >= r.south && b.north <= r.north
         }
         guard !insideChart else { return result(nil, nil) }
-        Self.session.dataTask(with: url(forTilePath: path)) { data, _, error in result(data, error) }.resume()
+        Self.fetch(url(forTilePath: path)) { data, ok in
+            if ok { return result(data, nil) }
+            // Data server unreachable: go to OpenSeaMap directly.
+            let direct = Self.openSeaMap.replacingOccurrences(of: "{z}", with: "\(path.z)")
+                .replacingOccurrences(of: "{x}", with: "\(path.x)").replacingOccurrences(of: "{y}", with: "\(path.y)")
+            guard let url = URL(string: direct) else { return result(nil, nil) }
+            Self.fetch(url) { data, _ in result(data, nil) }
+        }
+    }
+
+    /// PNG data, or nil for an empty tile; `ok` is false when the source failed.
+    private static func fetch(_ url: URL, completion: @escaping (Data?, Bool) -> Void) {
+        session.dataTask(with: url) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            switch status {
+            case 200: completion(data, true)
+            case 204, 404: completion(nil, true)
+            default: completion(nil, error == nil && status < 500 && status != 0)
+            }
+        }.resume()
     }
 }
 

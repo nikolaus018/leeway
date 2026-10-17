@@ -141,3 +141,60 @@ struct InspectorCard: View {
         }
     }
 }
+
+/// A tapped ship: what it is, where it's going, and how close it will pass.
+struct VesselCard: View {
+    @Environment(AppModel.self) private var model
+    var vessel: Vessel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "ferry.fill")
+                .font(.title3)
+                .foregroundStyle(danger ? Color.red : Color.accentColor)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(vessel.displayName)
+                    .font(.headline)
+                Text([vessel.kind, vessel.status].compactMap { $0 }.joined(separator: " · "))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    Text(vessel.sog.map { String(format: "%.1f kn", $0) } ?? "– kn")
+                    Text(vessel.course.map { String(format: "%03.0f°", $0) } ?? "–°")
+                    if let length = vessel.length { Text("\(Int(length)) m") }
+                }
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                if let approach {
+                    Label(approachText(approach), systemImage: danger ? "exclamationmark.triangle.fill" : "scope")
+                        .font(.subheadline.weight(danger ? .semibold : .regular))
+                        .foregroundStyle(danger ? Color.red : Color.primary)
+                }
+                if let destination = vessel.destination {
+                    Text("To \(destination)").font(.caption)
+                }
+                Text("MMSI \(String(vessel.mmsi))\(vessel.callSign.map { " · \($0)" } ?? "") · \(vessel.lastHeard.formatted(.relative(presentation: .named)))")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Button("Close", systemImage: "xmark") { model.inspection = nil }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+        }
+        .padding(14)
+        .frame(maxWidth: 420, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+    }
+
+    private var approach: Approach? { model.approach(to: vessel) }
+    private var danger: Bool { approach?.isDangerous ?? false }
+
+    private func approachText(_ a: Approach) -> String {
+        let distance = String(format: "%.2f NM", a.distance)
+        if a.time < 1.0 / 60 { return "Closest now: \(distance)" }
+        if a.time > 2 { return "Not closing" }
+        return "Closest \(distance) in \(Int((a.time * 60).rounded())) min"
+    }
+}

@@ -48,6 +48,9 @@ targets:
         NSSupportsLiveActivities: true
         NSLocationWhenInUseUsageDescription: Leeway shows your position on the chart and records your track.
         NSLocationAlwaysAndWhenInUseUsageDescription: Leeway keeps recording your track while the screen is off.
+        NSLocalNetworkUsageDescription: Leeway can use a data server on your local network, for example one on board.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
   LeewayWidgets:
