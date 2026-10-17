@@ -39,7 +39,12 @@ final class AppModel {
 
     // MARK: Persisted
 
-    var boat: BoatProfile { didSet { save(boat, as: "boat"); if boat.safetyDepth != oldValue.safetyDepth { routeChanged() } else { recompute() } } }
+    var boat: BoatProfile {
+        didSet {
+            save(boat, as: "boat")
+            if boat.safetyDepth != oldValue.safetyDepth || boat.airDraft != oldValue.airDraft { routeChanged() } else { recompute() }
+        }
+    }
     var savedRoutes: [Route] { didSet { save(savedRoutes, as: "routes") } }
     var mapBase: MapBase { didSet { save(mapBase, as: "mapBase") } }
     var showSeamarks: Bool { didSet { save(showSeamarks, as: "seamarks") } }
@@ -55,6 +60,8 @@ final class AppModel {
     private(set) var path: [CLLocationCoordinate2D] = []
     /// Manual mode: a warning per leg if it crosses land or shallows.
     private(set) var legHazards: [String?] = []
+    /// Things to know about the planned path, such as bridges with uncharted clearance.
+    private(set) var routeNotes: [String] = []
     private(set) var routingState = RoutingState.idle
     private(set) var forecast: RouteForecast?
     private(set) var forecastState = ForecastState.idle
@@ -233,11 +240,11 @@ final class AppModel {
 
         routingState = .routing
         if path.count < 2 { useStraightLegs(points, in: region) }
-        let safetyDepth = boat.safetyDepth
+        let safetyDepth = boat.safetyDepth, airDraft = boat.airDraft
         routeTask = Task {
             try? await Task.sleep(for: .milliseconds(120)) // coalesce drags
             guard !Task.isCancelled else { return }
-            let grid = await routingGrid(for: region, safetyDepth: safetyDepth)
+            let grid = await routingGrid(for: region, safetyDepth: safetyDepth, airDraft: airDraft)
             let result = await Task.detached(priority: .userInitiated) {
                 Result { try Router.route(through: points, on: grid) }
             }.value
@@ -246,6 +253,7 @@ final class AppModel {
             case .success(let routed):
                 path = routed.path
                 legHazards = []
+                routeNotes = Router.notes(for: routed.path, rules: grid.rules)
                 routingState = .routed(shallowEnds: routed.shallowConnections)
             case .failure(let error):
                 useStraightLegs(points, in: region)
@@ -257,16 +265,18 @@ final class AppModel {
 
     private func useStraightLegs(_ points: [CLLocationCoordinate2D], in region: ChartRegion?) {
         path = points
+        let rules = region.map { NavigationRules(region: $0, safetyDepth: boat.safetyDepth, airDraft: boat.airDraft) }
         legHazards = zip(points, points.dropFirst()).map { a, b in
-            region.flatMap { Router.hazard(from: a, to: b, region: $0, safetyDepth: boat.safetyDepth) }
+            rules.flatMap { Router.hazard(from: a, to: b, rules: $0) }
         }
+        routeNotes = rules.map { Router.notes(for: points, rules: $0) } ?? []
     }
 
-    private func routingGrid(for region: ChartRegion, safetyDepth: Double) async -> RoutingGrid {
-        let key = "\(region.id)@\(safetyDepth)"
+    private func routingGrid(for region: ChartRegion, safetyDepth: Double, airDraft: Double) async -> RoutingGrid {
+        let key = "\(region.id)@\(safetyDepth)@\(airDraft)"
         if let grid = grids[key] { return grid }
         let grid = await Task.detached(priority: .userInitiated) {
-            RoutingGrid(region: region, safetyDepth: safetyDepth)
+            RoutingGrid(rules: NavigationRules(region: region, safetyDepth: safetyDepth, airDraft: airDraft))
         }.value
         grids[key] = grid
         return grid

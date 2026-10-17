@@ -21,8 +21,18 @@ The bundled offline chart covers **Kvarner and Istria** (Rijeka, Opatija, Cres, 
   kept off rocks and shores, then straightened into a few courses to steer. Marinas and harbours behind breakwaters are left
   through connected water, for example out of Rijeka port via its western entrance. If an end point sits in water shallower
   than the safety depth, the app says so.
+- Keeps about 60 m clear of charted **rocks, wrecks and obstructions** (unless they're charted deeper than the safety depth
+  plus 1 m), isolated-danger marks, and the danger side of cardinal marks.
+- **Bridges**: blocked when their charted clearance is less than your **air draft** + 1 m. If the clearance isn't charted
+  (OSM has none in Kvarner yet, including the Krk bridge), the route still passes and you get a "check your air draft" note.
+  Opening bridges such as Osor's get a "check opening times" note. Clearances from an official chart can be added in
+  `CLEARANCE_OVERRIDES` in `tools/build_region.py`.
 - **Manual**: straight legs between your own waypoints. Legs that cross land or shallows are drawn red and dashed, and
   flagged in the leg list.
+- Wind comes from the finest model available for each hour: ItaliaMeteo **ICON-2I** (2.2 km, ~72 h, built for the
+  Adriatic), then DWD ICON-D2 (2.2 km), ICON-EU (7 km), then the global models. The planner shows which one is in use.
+  Winds get their Adriatic names (bura, jugo, maestral…). **Bura** gusts of 25 kn or more are flagged per leg, and the max-gusts
+  comfort limit counts toward the departure rating.
 - Either mode is timed with forecast wind (Open-Meteo), tidal streams and waves (Open-Meteo marine), and a sailing
   performance curve. A best-departure chart covers the next 3 days.
 
@@ -79,8 +89,7 @@ data is coarser than the grid there.
 ## Known limits
 
 - **Not for navigation.** The depth data is a ~115 m survey grid. It doesn't show isolated rocks, shoals or wrecks smaller
-  than that, and narrow passages (such as the Osor canal) are closed. OSM rocks and wrecks appear as seamarks, but the router
-  doesn't avoid them yet.
+  than that, and narrow passages (such as the Osor canal) are closed. The router avoids only the rocks and wrecks mapped in OSM.
 - Only the bundled region has depths and automatic routing. Elsewhere you get the base map, OpenSeaMap symbols and manual routes.
 - Routing picks the shortest safe path. It doesn't yet optimise for wind or tide the way savvy navvy does.
 - The Open-Meteo current data (~8 km) misses small-scale tidal effects close inshore. Tides are small in the Adriatic anyway.

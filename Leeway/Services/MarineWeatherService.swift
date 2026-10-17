@@ -10,6 +10,45 @@ struct Conditions: Equatable {
     var currentToward: Double  // ° true (direction the stream sets)
 
     static let calm = Conditions(windSpeed: 0, windFrom: 0, gust: 0, waveHeight: nil, currentSpeed: 0, currentToward: 0)
+
+    /// The Adriatic name for a wind from this direction.
+    var windName: String {
+        switch Geo.normalize(windFrom) {
+        case 20..<90: "Bura"        // NE: cold, gusty fall wind off the Velebit and Učka
+        case 90..<110: "Levant"
+        case 110..<170: "Jugo"      // SE: warm, steady, builds big seas
+        case 170..<200: "Oštro"
+        case 200..<250: "Lebić"
+        case 250..<290: "Pulenat"
+        case 290..<340: "Maestral"  // NW: the summer afternoon sea breeze
+        default: "Tramontana"
+        }
+    }
+
+    var isBura: Bool { windName == "Bura" }
+}
+
+/// Weather models in order of preference; high-resolution ones resolve the gusty bura.
+nonisolated enum WindModel: Int, CaseIterable, Sendable {
+    case icon2I, iconD2, iconEU, global
+
+    var apiName: String {
+        switch self {
+        case .icon2I: "italia_meteo_arpae_icon_2i"
+        case .iconD2: "icon_d2"
+        case .iconEU: "icon_eu"
+        case .global: "best_match"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .icon2I: "ICON-2I 2 km"
+        case .iconD2: "ICON-D2 2 km"
+        case .iconEU: "ICON-EU 7 km"
+        case .global: "global model"
+        }
+    }
 }
 
 /// Hourly forecast for one point on the route.
@@ -23,6 +62,8 @@ struct ForecastSeries {
     var waveHeight: [Double?]
     var currentSpeed: [Double?]
     var currentToward: [Double?]
+    /// Which model supplied the wind for each hour.
+    var windModel: [WindModel?] = []
 
     func conditions(at date: Date) -> Conditions {
         guard let first = times.first, let last = times.last, times.count > 1 else { return .calm }
@@ -70,6 +111,17 @@ struct RouteForecast {
 
     var validUntil: Date { points.compactMap { $0.times.last }.min() ?? fetchedAt }
 
+    /// The wind models used over a time span, e.g. [(ICON-2I, until Mon 08:00), (ICON-EU, until Wed 00:00)].
+    func windModels(from start: Date, to end: Date) -> [(model: WindModel, until: Date)] {
+        guard let series = points.first else { return [] }
+        var runs: [(WindModel, Date)] = []
+        for (time, model) in zip(series.times, series.windModel) where time >= start.addingTimeInterval(-3600) && time <= end.addingTimeInterval(3600) {
+            guard let model else { continue }
+            if runs.last?.0 == model { runs[runs.count - 1].1 = time } else { runs.append((model, time)) }
+        }
+        return runs.map { (model: $0.0, until: $0.1) }
+    }
+
     func conditions(alongNM distance: Double, at date: Date) -> Conditions {
         guard let nearest = points.min(by: { abs($0.distanceAlong - distance) < abs($1.distanceAlong - distance) }) else { return .calm }
         return nearest.conditions(at: date)
@@ -98,7 +150,8 @@ struct MarineWeatherService {
             "https://api.open-meteo.com/v1/forecast",
             lats, lons,
             hourly: "wind_speed_10m,wind_direction_10m,wind_gusts_10m",
-            extra: [URLQueryItem(name: "wind_speed_unit", value: "kn")]
+            extra: [URLQueryItem(name: "wind_speed_unit", value: "kn"),
+                    URLQueryItem(name: "models", value: WindModel.allCases.map(\.apiName).joined(separator: ","))]
         )
         async let marine = fetch(
             "https://marine-api.open-meteo.com/v1/marine",
@@ -106,30 +159,44 @@ struct MarineWeatherService {
             hourly: "wave_height,ocean_current_velocity,ocean_current_direction"
         )
         let (windData, marineData) = try await (wind, marine)
-        let windSeries = try decode(windData)
+        let windSeries = try decodeModels(windData)
         let marineSeries = try decode(marineData)
         guard windSeries.count == samples.count else { throw Failure.badResponse }
 
         let points = samples.enumerated().map { index, sample in
-            let w = windSeries[index].hourly
+            let w = windSeries[index]
             let m = index < marineSeries.count ? marineSeries[index].hourly : nil
-            let times = w.time.map { Date(timeIntervalSince1970: $0) }
+            let wTimes = (w["time"] ?? []).map { $0 ?? 0 }
+            let times = wTimes.map { Date(timeIntervalSince1970: $0) }
+            // Per hour, take the wind from the finest model that has it.
+            var speed: [Double?] = [], from: [Double?] = [], gust: [Double?] = [], source: [WindModel?] = []
+            for i in wTimes.indices {
+                func value(_ variable: String, _ model: WindModel) -> Double? {
+                    w["\(variable)_\(model.apiName)"].flatMap { i < $0.count ? $0[i] : nil }
+                }
+                let model = WindModel.allCases.first { value("wind_speed_10m", $0) != nil && value("wind_direction_10m", $0) != nil }
+                speed.append(model.flatMap { value("wind_speed_10m", $0) })
+                from.append(model.flatMap { value("wind_direction_10m", $0) })
+                gust.append(model.flatMap { value("wind_gusts_10m", $0) })
+                source.append(model)
+            }
             // Marine data is keyed by timestamp so the two feeds line up even if their ranges differ.
             var marineByTime: [Double: Int] = [:]
             m?.time.enumerated().forEach { marineByTime[$1] = $0 }
             func marineValue(_ values: [Double?]?, factor: Double = 1) -> [Double?] {
-                w.time.map { t in marineByTime[t].flatMap { values?[$0] }.map { $0 * factor } }
+                wTimes.map { t in marineByTime[t].flatMap { values?[$0] }.map { $0 * factor } }
             }
             return ForecastSeries(
                 coordinate: sample.0,
                 distanceAlong: sample.1,
                 times: times,
-                windSpeed: w.windSpeed10m ?? [],
-                windFrom: w.windDirection10m ?? [],
-                gust: w.windGusts10m ?? [],
+                windSpeed: speed,
+                windFrom: from,
+                gust: gust,
                 waveHeight: marineValue(m?.waveHeight),
                 currentSpeed: marineValue(m?.oceanCurrentVelocity, factor: 1 / 1.852), // km/h → kn
-                currentToward: marineValue(m?.oceanCurrentDirection)
+                currentToward: marineValue(m?.oceanCurrentDirection),
+                windModel: source
             )
         }
         return RouteForecast(points: points, fetchedAt: .now)
@@ -150,6 +217,14 @@ struct MarineWeatherService {
         return data
     }
 
+    /// Multi-model responses suffix each variable with the model name, so read `hourly` as a dictionary.
+    private func decodeModels(_ data: Data) throws -> [[String: [Double?]]] {
+        struct Response: Decodable { var hourly: [String: [Double?]] }
+        let decoder = JSONDecoder()
+        if let many = try? decoder.decode([Response].self, from: data) { return many.map(\.hourly) }
+        return [try decoder.decode(Response.self, from: data).hourly]
+    }
+
     private func decode(_ data: Data) throws -> [OpenMeteoResponse] {
         let decoder = JSONDecoder()
         // One location comes back as an object, several as an array.
@@ -161,18 +236,12 @@ struct MarineWeatherService {
 private struct OpenMeteoResponse: Decodable {
     struct Hourly: Decodable {
         var time: [Double]
-        var windSpeed10m: [Double?]?
-        var windDirection10m: [Double?]?
-        var windGusts10m: [Double?]?
         var waveHeight: [Double?]?
         var oceanCurrentVelocity: [Double?]?
         var oceanCurrentDirection: [Double?]?
 
         enum CodingKeys: String, CodingKey {
             case time
-            case windSpeed10m = "wind_speed_10m"
-            case windDirection10m = "wind_direction_10m"
-            case windGusts10m = "wind_gusts_10m"
             case waveHeight = "wave_height"
             case oceanCurrentVelocity = "ocean_current_velocity"
             case oceanCurrentDirection = "ocean_current_direction"

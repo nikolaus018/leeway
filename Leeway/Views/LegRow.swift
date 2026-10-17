@@ -20,6 +20,11 @@ struct LegRow: View {
                 Text(details)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if leg.buraGust >= 25 {
+                    Label("Bura gusts to \(Int(leg.buraGust.rounded())) kn", systemImage: "wind")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
                 if let hazard {
                     Label(hazard, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
@@ -49,7 +54,7 @@ struct LegRow: View {
     private var details: String {
         var parts = [String(format: "%.1f kn avg", leg.averageSOG)]
         if leg.maxWind > 0 {
-            parts.append("\(Int(leg.maxWind.rounded())) kn wind")
+            parts.append("\(Int(leg.maxWind.rounded())) kn \(leg.maxWind >= 8 ? (leg.windName ?? "wind").lowercased() : "wind")")
             if sailing {
                 parts.append(leg.motoringFraction > 0.5 ? "Motoring" : leg.tacking ? "Beating" : Polar.pointOfSail(twa: leg.meanTWA))
             }

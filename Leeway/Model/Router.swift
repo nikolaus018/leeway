@@ -1,12 +1,69 @@
 import CoreLocation
 
-/// Where the boat may go for a given safety depth, plus how far each cell is from danger.
+/// A charted danger the boat must keep clear of, as a no-go disc.
+nonisolated struct Danger: Sendable {
+    var center: CLLocationCoordinate2D
+    /// Radius of the no-go disc in metres.
+    var radius: Double
+    var label: String
+
+    /// Rocks, wrecks and obstructions that could touch the keel, plus the dangers that
+    /// isolated-danger and cardinal marks point at.
+    static func all(in region: ChartRegion, safetyDepth: Double) -> [Danger] {
+        region.seamarks.compactMap { mark in
+            switch mark.type {
+            case "rock", "wreck", "obstruction":
+                // Charted with enough water over it: no danger to this boat.
+                if let depth = mark.depthMetres, depth >= safetyDepth + 1 { return nil }
+                let level = mark.waterLevel.map { " (\($0.replacingOccurrences(of: "-", with: " ")))" } ?? ""
+                return Danger(center: mark.coordinate, radius: mark.type == "rock" ? 60 : 50, label: "\(mark.type)\(level)")
+            case "buoy_isolated_danger", "beacon_isolated_danger":
+                return Danger(center: mark.coordinate, radius: 60, label: "isolated danger mark")
+            case "buoy_cardinal", "beacon_cardinal":
+                // A north cardinal says "pass to the north": the danger lies to its south, and so on.
+                let toDanger: Double? = switch mark.category {
+                case "north": 180
+                case "east": 270
+                case "south": 0
+                case "west": 90
+                default: nil
+                }
+                guard let toDanger else { return nil }
+                return Danger(center: Geo.destination(from: mark.coordinate, bearing: toDanger, distanceNM: 70 / 1852),
+                              radius: 60, label: "danger marked by a \(mark.category ?? "") cardinal")
+            default:
+                return nil
+            }
+        }
+    }
+}
+
+/// The boat-specific limits a route is checked against.
+nonisolated struct NavigationRules: Sendable {
+    let region: ChartRegion
+    let safetyDepth: Double
+    let airDraft: Double
+    let dangers: [Danger]
+
+    init(region: ChartRegion, safetyDepth: Double, airDraft: Double) {
+        self.region = region
+        self.safetyDepth = safetyDepth
+        self.airDraft = airDraft
+        dangers = Danger.all(in: region, safetyDepth: safetyDepth)
+    }
+}
+
+/// Where the boat may go for a given safety depth and air draft, plus how far each cell is from danger.
 nonisolated final class RoutingGrid: Sendable {
     /// Cells of clearance beyond which there's no penalty (~4 × 67 m).
     static let maxClearance: UInt8 = 4
+    /// Extra headroom wanted under a bridge, metres.
+    static let bridgeMargin = 1.0
 
-    let region: ChartRegion
-    let safetyDepth: Double
+    let rules: NavigationRules
+    var region: ChartRegion { rules.region }
+    /// Water cells closed by a charted danger or a bridge that's too low.
+    let blocked: [Bool]
     /// Distance in cells to the nearest land or too-shallow cell, capped. 0 = not navigable.
     let clearance: [UInt8]
     /// Connected safe-water areas (4-connected); -1 = not navigable.
@@ -14,12 +71,42 @@ nonisolated final class RoutingGrid: Sendable {
     /// The largest connected area — the open sea.
     let seaComponent: Int32
 
-    init(region: ChartRegion, safetyDepth: Double) {
-        self.region = region
-        self.safetyDepth = safetyDepth
+    init(rules: NavigationRules) {
+        self.rules = rules
+        let region = rules.region, safetyDepth = rules.safetyDepth, airDraft = rules.airDraft
         let minimumCode = UInt8(min(250, (safetyDepth * 2).rounded(.up)))
         let rows = region.rows, cols = region.cols
-        var d = region.grid.map { $0 == ChartRegion.landCode || $0 < minimumCode ? UInt8(0) : Self.maxClearance }
+
+        var closed = [Bool](repeating: false, count: rows * cols)
+        for danger in rules.dangers {
+            let p = region.gridPoint(danger.center)
+            let rx = danger.radius / (region.cellNM.dx * 1852), ry = danger.radius / (region.cellNM.dy * 1852)
+            for r in max(0, Int(p.y - ry))...min(rows - 1, Int(p.y + ry)) {
+                for c in max(0, Int(p.x - rx))...min(cols - 1, Int(p.x + rx)) {
+                    let nx = (Double(c) + 0.5 - p.x) / rx, ny = (Double(r) + 0.5 - p.y) / ry
+                    if nx * nx + ny * ny <= 1 || (r == Int(p.y) && c == Int(p.x)) { closed[r * cols + c] = true }
+                }
+            }
+        }
+        for bridge in region.bridges {
+            guard let height = bridge.clearance, height < airDraft + Self.bridgeMargin else { continue }
+            for (a, b) in zip(bridge.coordinates, bridge.coordinates.dropFirst()) {
+                let p = region.gridPoint(a), q = region.gridPoint(b)
+                let steps = max(1, Int((hypot(q.x - p.x, q.y - p.y) / 0.25).rounded(.up)))
+                for s in 0...steps {
+                    let t = Double(s) / Double(steps)
+                    let x = Int(p.x + (q.x - p.x) * t), y = Int(p.y + (q.y - p.y) * t)
+                    if x >= 0, y >= 0, x < cols, y < rows { closed[y * cols + x] = true }
+                }
+            }
+        }
+        blocked = closed
+
+        var d = [UInt8](repeating: 0, count: rows * cols)
+        for i in 0..<(rows * cols) {
+            let code = region.grid[i]
+            d[i] = code == ChartRegion.landCode || code < minimumCode || closed[i] ? 0 : Self.maxClearance
+        }
         // Two-pass chamfer distance (chessboard metric).
         d.withUnsafeMutableBufferPointer { d in
             for r in 0..<rows {
@@ -77,6 +164,8 @@ nonisolated final class RoutingGrid: Sendable {
     }
 
     func isNavigable(_ i: Int) -> Bool { clearance[i] > 0 }
+    /// Water the boat can creep through at low speed (shallow is allowed, dangers and low bridges aren't).
+    func isPassable(_ i: Int) -> Bool { region.grid[i] != ChartRegion.landCode && !blocked[i] }
     func isOpenWater(_ i: Int) -> Bool { component[i] == seaComponent }
 }
 
@@ -128,8 +217,9 @@ nonisolated enum Router {
         return Result(path: dedupe(path), shallowConnections: shallow)
     }
 
-    /// Checks a straight leg for land and water shallower than the safety depth.
-    static func hazard(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D, region: ChartRegion, safetyDepth: Double) -> String? {
+    /// Checks a straight leg for land, shallows, charted dangers and low bridges.
+    static func hazard(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D, rules: NavigationRules) -> String? {
+        let region = rules.region
         let p = region.gridPoint(a), q = region.gridPoint(b)
         let steps = max(1, Int((hypot(q.x - p.x, q.y - p.y) / 0.3).rounded(.up)))
         var minDepth = Double.infinity
@@ -143,8 +233,65 @@ nonisolated enum Router {
             if code == ChartRegion.landCode { return "Crosses land" }
             minDepth = min(minDepth, Double(code) / 2)
         }
-        guard known, minDepth < safetyDepth else { return nil }
-        return String(format: "Shallows: %.1f m (safety depth %.1f m)", minDepth, safetyDepth)
+        for bridge in region.bridges where crosses(a, b, bridge.coordinates) {
+            if let height = bridge.clearance, height < rules.airDraft + RoutingGrid.bridgeMargin {
+                return String(format: "%@ too low: %.0f m clearance, air draft %.0f m", bridge.displayName, height, rules.airDraft)
+            }
+        }
+        if let (danger, distance) = closestDanger(to: a, b, in: rules.dangers), distance < danger.radius {
+            return "Passes \(Int(distance.rounded())) m from a \(danger.label)"
+        }
+        guard known, minDepth < rules.safetyDepth else { return nil }
+        return String(format: "Shallows: %.1f m (safety depth %.1f m)", minDepth, rules.safetyDepth)
+    }
+
+    /// Things the skipper should know about a planned path, e.g. bridges whose clearance isn't charted.
+    static func notes(for path: [CLLocationCoordinate2D], rules: NavigationRules) -> [String] {
+        var notes: [String] = []
+        for bridge in rules.region.bridges {
+            guard zip(path, path.dropFirst()).contains(where: { crosses($0.0, $0.1, bridge.coordinates) }) else { continue }
+            let air = String(format: "%.0f m", rules.airDraft)
+            if bridge.isOpening {
+                notes.append("Passes \(bridge.displayName): opening bridge, check opening times.")
+            } else if let height = bridge.clearance {
+                notes.append(String(format: "Passes under %@: %.0f m clearance (air draft %@).", bridge.displayName, height, air))
+            } else {
+                notes.append("Passes under \(bridge.displayName): clearance not charted. Check it against your air draft (\(air)).")
+            }
+        }
+        // Waypoints placed right on a danger (the router keeps the legs clear but can't move your waypoints).
+        for point in path.prefix(1) + path.suffix(1) {
+            if let (danger, distance) = closestDanger(to: point, point, in: rules.dangers), distance < danger.radius {
+                notes.append("A waypoint is \(Int(distance.rounded())) m from a \(danger.label).")
+            }
+        }
+        return notes
+    }
+
+    private static func crosses(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D, _ line: [CLLocationCoordinate2D]) -> Bool {
+        func orient(_ p: CLLocationCoordinate2D, _ q: CLLocationCoordinate2D, _ r: CLLocationCoordinate2D) -> Double {
+            (q.longitude - p.longitude) * (r.latitude - p.latitude) - (q.latitude - p.latitude) * (r.longitude - p.longitude)
+        }
+        for (c, d) in zip(line, line.dropFirst()) {
+            if orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0 { return true }
+        }
+        return false
+    }
+
+    /// Nearest danger to segment a–b and its distance in metres.
+    private static func closestDanger(to a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D, in dangers: [Danger]) -> (Danger, Double)? {
+        let metresPerDegLat = 111_320.0, metresPerDegLon = 111_320.0 * cos(a.latitude.radians)
+        let bx = (b.longitude - a.longitude) * metresPerDegLon, by = (b.latitude - a.latitude) * metresPerDegLat
+        let lengthSquared = bx * bx + by * by
+        var best: (Danger, Double)?
+        for danger in dangers {
+            let px = (danger.center.longitude - a.longitude) * metresPerDegLon
+            let py = (danger.center.latitude - a.latitude) * metresPerDegLat
+            let t = lengthSquared > 0 ? min(1, max(0, (px * bx + py * by) / lengthSquared)) : 0
+            let distance = hypot(px - t * bx, py - t * by)
+            if distance < (best?.1 ?? .infinity) { best = (danger, distance) }
+        }
+        return best
     }
 
     // MARK: - Search
@@ -282,7 +429,7 @@ nonisolated enum Router {
                     let nr = r + dr, nc = c + dc
                     guard nr >= 0, nc >= 0, nr < rows, nc < cols else { continue }
                     let n = nr * cols + nc
-                    guard parent[n] == nil, region.grid[n] != ChartRegion.landCode else { continue }
+                    guard parent[n] == nil, grid.isPassable(n) else { continue }
                     parent[n] = i
                     queue.append(n)
                 }

@@ -46,6 +46,15 @@ nonisolated enum Geo {
         return previous
     }
 
+    /// Point reached from `start` on an initial bearing after `distanceNM`.
+    static func destination(from start: CLLocationCoordinate2D, bearing: Double, distanceNM: Double) -> CLLocationCoordinate2D {
+        let δ = distanceNM / earthRadiusNM, θ = bearing.radians
+        let φ1 = start.latitude.radians, λ1 = start.longitude.radians
+        let φ2 = asin(sin(φ1) * cos(δ) + cos(φ1) * sin(δ) * cos(θ))
+        let λ2 = λ1 + atan2(sin(θ) * sin(δ) * cos(φ1), cos(δ) - sin(φ1) * sin(φ2))
+        return CLLocationCoordinate2D(latitude: φ2.degrees, longitude: λ2.degrees)
+    }
+
     static func length(of path: [CLLocationCoordinate2D]) -> Double {
         zip(path, path.dropFirst()).reduce(0) { $0 + distanceNM($1.0, $1.1) }
     }

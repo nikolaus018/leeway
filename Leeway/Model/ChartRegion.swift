@@ -12,12 +12,20 @@ nonisolated struct Seamark: Decodable, Sendable, Hashable {
     /// Chart-style light characteristic, e.g. "Fl(2)R.5s 12m 6M".
     let light: String?
     let depth: String?
+    /// For rocks, wrecks, obstructions: dry, awash, covers, submerged…
+    let waterLevel: String?
 
     var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
 
     enum CodingKeys: String, CodingKey {
         case type = "t", name = "n", latitude = "la", longitude = "lo", category = "c", colour = "col", light = "l", depth = "d"
+        case waterLevel = "wl"
     }
+
+    /// Charted depth over the object, if known.
+    var depthMetres: Double? { depth.flatMap { Double($0.replacingOccurrences(of: ",", with: ".").split(separator: " ").first ?? "") } }
+
+    var isDanger: Bool { ["rock", "wreck", "obstruction"].contains(type) }
 
     /// Plain-language name of the object type.
     var kind: String {
@@ -49,6 +57,24 @@ nonisolated struct Seamark: Decodable, Sendable, Hashable {
     var isHarbourLike: Bool { ["harbour", "anchorage", "small_craft_facility"].contains(type) }
 }
 
+/// A bridge over navigable water.
+nonisolated struct Bridge: Decodable, Sendable, Hashable {
+    let id: Int
+    let name: String?
+    /// Vertical clearance in metres, if charted.
+    let clearance: Double?
+    let category: String?
+    let points: [[Double]]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name = "n", clearance = "h", category = "c", points = "pts"
+    }
+
+    var coordinates: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) } }
+    var isOpening: Bool { ["swing", "lifting", "bascule", "opening", "draw", "transporter", "pontoon"].contains(category ?? "") }
+    var displayName: String { name ?? (isOpening ? "Opening bridge" : "Bridge") }
+}
+
 /// An offline chart area: a depth/land grid plus seamarks, built by tools/build_region.py.
 nonisolated final class ChartRegion: Sendable {
     static let landCode: UInt8 = 255
@@ -61,6 +87,7 @@ nonisolated final class ChartRegion: Sendable {
     /// Row-major, row 0 = north. 0...250 = depth in half metres, 255 = land.
     let grid: [UInt8]
     let seamarks: [Seamark]
+    let bridges: [Bridge]
     /// Coastline polygons (lon/lat), for drawing crisp land; the grid is too coarse at harbour scale.
     let landRings: [[SIMD2<Float>]]
     /// Bounding box per ring: west, south, east, north.
@@ -74,6 +101,7 @@ nonisolated final class ChartRegion: Sendable {
         let west, south, east, north, latStep, lonStep: Double
         let rows, cols: Int
         let seamarks: [Seamark]
+        let bridges: [Bridge]?
     }
 
     init(metadata: URL, depth: URL, land: URL? = nil) throws {
@@ -87,6 +115,7 @@ nonisolated final class ChartRegion: Sendable {
         rows = meta.rows; cols = meta.cols
         grid = [UInt8](raw)
         seamarks = meta.seamarks
+        bridges = meta.bridges ?? []
         var rings: [[SIMD2<Float>]] = []
         if let land, let packedLand = try? Data(contentsOf: land) as NSData,
            let blob = try? packedLand.decompressed(using: .zlib) as Data {

@@ -10,7 +10,7 @@ struct BoatSettingsView: View {
             Form {
                 Section {
                     TextField("Name", text: $boat.name)
-                    Picker("Type", selection: $boat.propulsion) {
+                    Picker("Type", selection: $boat.propulsion.animation()) {
                         ForEach(Propulsion.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -39,15 +39,21 @@ struct BoatSettingsView: View {
                     Stepper(value: $boat.underKeelClearance, in: 0...5, step: 0.1) {
                         LabeledContent("Under-keel clearance", value: String(format: "%.1f m", boat.underKeelClearance))
                     }
+                    Stepper(value: $boat.airDraft, in: 1...40, step: 0.5) {
+                        LabeledContent("Air draft", value: String(format: "%.1f m", boat.airDraft))
+                    }
                 } header: {
-                    Text("Depth")
+                    Text("Clearances")
                 } footer: {
-                    Text("Automatic routes stay in water at least \(String(format: "%.1f m", boat.safetyDepth)) deep. The chart draws this as the bold safety contour and shades shallower water darker.")
+                    Text("Automatic routes stay in water at least \(String(format: "%.1f m", boat.safetyDepth)) deep and keep clear of charted rocks and wrecks. The chart draws the safety depth as the bold contour. Air draft is the height of your mast top above the water; routes avoid bridges with less clearance (plus 1 m).")
                 }
 
                 Section {
                     Stepper(value: $boat.maxWind, in: 8...40, step: 1) {
                         LabeledContent("Max wind", value: "\(Int(boat.maxWind)) kn")
+                    }
+                    Stepper(value: $boat.maxGust, in: 10...60, step: 1) {
+                        LabeledContent("Max gusts", value: "\(Int(boat.maxGust)) kn")
                     }
                     Stepper(value: $boat.maxWave, in: 0.3...5, step: 0.1) {
                         LabeledContent("Max waves", value: String(format: "%.1f m", boat.maxWave))

@@ -9,6 +9,10 @@ struct LegResult: Identifiable {
     var arrival: Date
     var maxWind: Double
     var maxGust: Double
+    /// Strongest gust while the bura blows (0 if none).
+    var buraGust: Double
+    /// Local name of the strongest wind on the leg.
+    var windName: String?
     var maxWave: Double?
     var meanTWA: Double
     var tacking: Bool
@@ -40,6 +44,7 @@ struct PassagePlan {
     var duration: TimeInterval { arrival.timeIntervalSince(departure) }
     var maxWind: Double { legs.map(\.maxWind).max() ?? 0 }
     var maxGust: Double { legs.map(\.maxGust).max() ?? 0 }
+    var buraGust: Double { legs.map(\.buraGust).max() ?? 0 }
     var maxWave: Double? { legs.compactMap(\.maxWave).max() }
     var motoringFraction: Double {
         guard duration > 0 else { return 0 }
@@ -82,7 +87,8 @@ enum PassageSimulator {
             let legDistance = Geo.distanceNM(a, b)
             let legStart = clock
             var covered = 0.0
-            var maxWind = 0.0, maxGust = 0.0, maxWave: Double?
+            var maxWind = 0.0, maxGust = 0.0, buraGust = 0.0, maxWave: Double?
+            var windName: String?
             var twaSum = 0.0, currentSum = 0.0, stepCount = 0.0
             var motoringTime = 0.0
             var tacking = false
@@ -103,8 +109,10 @@ enum PassageSimulator {
                 if motion.motoring { motoringTime += hours }
                 tacking = tacking || motion.tacking
                 if let c = conditions {
+                    if c.windSpeed > maxWind { windName = c.windName }
                     maxWind = max(maxWind, c.windSpeed)
                     maxGust = max(maxGust, c.gust)
+                    if c.isBura { buraGust = max(buraGust, c.gust) }
                     if let w = c.waveHeight { maxWave = max(maxWave ?? 0, w) }
                 }
                 twaSum += motion.twa * step
@@ -123,6 +131,8 @@ enum PassageSimulator {
                 arrival: clock,
                 maxWind: maxWind,
                 maxGust: maxGust,
+                buraGust: buraGust,
+                windName: windName,
                 maxWave: maxWave,
                 meanTWA: stepCount > 0 ? twaSum / stepCount : 0,
                 tacking: tacking,
@@ -151,8 +161,9 @@ enum PassageSimulator {
                   plan.arrival <= forecast.validUntil else { return nil }
             let wave = plan.maxWave ?? 0
             let rating: DepartureOption.Rating =
-                plan.maxWind > boat.maxWind || wave > boat.maxWave ? .rough :
-                plan.maxWind > boat.maxWind * 0.8 || wave > boat.maxWave * 0.8 || plan.motoringFraction > 0.5 ? .fair : .good
+                plan.maxWind > boat.maxWind || plan.maxGust > boat.maxGust || wave > boat.maxWave ? .rough :
+                plan.maxWind > boat.maxWind * 0.8 || plan.maxGust > boat.maxGust * 0.8 || wave > boat.maxWave * 0.8
+                    || plan.motoringFraction > 0.5 ? .fair : .good
             return DepartureOption(
                 departure: departure,
                 duration: plan.duration,

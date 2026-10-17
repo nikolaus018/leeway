@@ -269,7 +269,7 @@ private struct RoutingStatus: View {
             .foregroundStyle(.secondary)
         case .routed(let shallowEnds):
             VStack(alignment: .leading, spacing: 6) {
-                Label("Avoids land and water under \(safety)", systemImage: "checkmark.shield")
+                Label("Avoids land, charted rocks and wrecks, and water under \(safety)", systemImage: "checkmark.shield")
                     .foregroundStyle(.green)
                 if !shallowEnds.isEmpty {
                     Label("\(names(shallowEnds)) in water shallower than \(safety) — approach with care.",
@@ -292,6 +292,11 @@ private struct RoutingStatus: View {
             }
         case .failed(let message):
             Label("\(message) Showing straight legs.", systemImage: "exclamationmark.triangle")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+        }
+        ForEach(model.routeNotes, id: \.self) { note in
+            Label(note, systemImage: note.contains("bridge") || note.contains("under") ? "arrow.up.and.down" : "exclamationmark.triangle")
                 .font(.footnote)
                 .foregroundStyle(.orange)
         }
@@ -320,6 +325,16 @@ private struct ForecastStatus: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
         case .loaded:
+            if let plan = model.plan, let forecast = model.forecast {
+                let runs = forecast.windModels(from: plan.departure, to: plan.arrival)
+                if !runs.isEmpty {
+                    Label("Wind: " + runs.enumerated().map { i, run in
+                        i == runs.count - 1 ? run.model.label : "\(run.model.label) until \(run.until.formatted(.dateTime.weekday(.abbreviated).hour()))"
+                    }.joined(separator: ", then "), systemImage: "scope")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+            }
             if model.plan?.beyondForecast == true {
                 Label("Arrival is beyond the forecast range — later legs use the last forecast hour.", systemImage: "exclamationmark.triangle")
                     .font(.footnote)
@@ -347,12 +362,21 @@ private struct ConditionsGrid: View {
     var boat: BoatProfile
 
     var body: some View {
+        if plan.buraGust >= 25 {
+            Label {
+                Text("Bura gusts up to \(Int(plan.buraGust.rounded())) kn. Bura gusts hit suddenly and harder under the mountains (Velebit, Učka) and in the channels; reef early or wait it out.")
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.orange)
+        }
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
             GridRow {
                 Metric(symbol: "wind", title: "Max wind", value: "\(Int(plan.maxWind.rounded())) kn",
                        tint: WindScale.color(plan.maxWind), warning: plan.maxWind > boat.maxWind)
                 Metric(symbol: "tornado", title: "Gusts", value: "\(Int(plan.maxGust.rounded())) kn",
-                       tint: WindScale.color(plan.maxGust), warning: false)
+                       tint: WindScale.color(plan.maxGust), warning: plan.maxGust > boat.maxGust)
             }
             GridRow {
                 Metric(symbol: "water.waves", title: "Max waves",

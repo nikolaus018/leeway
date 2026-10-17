@@ -65,8 +65,11 @@ struct BoatProfile: Codable, Equatable {
     var draft = 1.8
     /// Extra water wanted under the keel; draft + clearance is the safety depth for routing.
     var underKeelClearance = 1.0
+    /// Height above the waterline of the highest point (mast top, antennas), for bridges.
+    var airDraft = 16.0
     /// Comfort limits used to rank departure times.
     var maxWind = 22.0
+    var maxGust = 30.0
     var maxWave = 1.5
 
     var safetyDepth: Double { draft + underKeelClearance }
@@ -84,7 +87,9 @@ struct BoatProfile: Codable, Equatable {
         motorThreshold = try c.decodeIfPresent(Double.self, forKey: .motorThreshold) ?? d.motorThreshold
         draft = try c.decodeIfPresent(Double.self, forKey: .draft) ?? d.draft
         underKeelClearance = try c.decodeIfPresent(Double.self, forKey: .underKeelClearance) ?? d.underKeelClearance
+        airDraft = try c.decodeIfPresent(Double.self, forKey: .airDraft) ?? d.airDraft
         maxWind = try c.decodeIfPresent(Double.self, forKey: .maxWind) ?? d.maxWind
+        maxGust = try c.decodeIfPresent(Double.self, forKey: .maxGust) ?? d.maxGust
         maxWave = try c.decodeIfPresent(Double.self, forKey: .maxWave) ?? d.maxWave
     }
 }

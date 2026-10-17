@@ -174,8 +174,11 @@ def seamarks(west, south, east, north):
             item["col"] = colour
         if (light := light_description(tags)):
             item["l"] = light
-        if (depth := tags.get("seamark:sounding:depth") or tags.get("depth")):
+        if (depth := (tags.get(f"seamark:{kind}:depth") or tags.get(f"seamark:{kind}:value_of_sounding")
+                      or tags.get("seamark:sounding:depth") or tags.get("depth"))):
             item["d"] = depth
+        if (level := tags.get(f"seamark:{kind}:water_level")):
+            item["wl"] = level
         keep.append(item)
     # Marinas are often mapped both as leisure=marina and seamark harbour; keep one.
     seen, unique = set(), []
@@ -186,6 +189,56 @@ def seamarks(west, south, east, north):
             unique.append(item)
     print(f"  {len(unique)} seamarks")
     return unique
+
+
+# Clearances (m) for bridges whose OSM data lacks them, keyed by OSM way id. Only add values from an official chart.
+CLEARANCE_OVERRIDES: dict[int, float] = {}
+
+
+def bridges(west, south, east, north, code):
+    """Bridges spanning real water: nautical-tagged ones plus road bridges over cells deeper than 2 m."""
+    print("Fetching bridges from OSM…")
+    bbox = f"({south},{west},{north},{east})"
+    ways = overpass(f'[out:json][timeout:180];(way["seamark:type"="bridge"]{bbox};'
+                    f'way["bridge"]["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified)$"]{bbox};);out tags geom;')
+    rows, cols = code.shape
+    result = []
+    for w in ways:
+        tags, geometry = w.get("tags", {}), w.get("geometry", [])
+        if len(geometry) < 2:
+            continue
+        line = LineString([(p["lon"], p["lat"]) for p in geometry])
+        nautical = tags.get("seamark:type") == "bridge"
+        if not nautical:
+            # Keep only bridges with water at least 2 m deep somewhere under them.
+            spans_water = False
+            steps = max(2, int(line.length / 0.0002))
+            for k in range(steps + 1):
+                p = line.interpolate(k / steps, normalized=True)
+                r, c = int((north - p.y) / LAT_STEP), int((p.x - west) / LON_STEP)
+                if 0 <= r < rows and 0 <= c < cols and code[r, c] != LAND and code[r, c] >= 4:
+                    spans_water = True
+                    break
+            if not spans_water:
+                continue
+        clearance = CLEARANCE_OVERRIDES.get(w["id"])
+        for key in ("seamark:bridge:clearance_height", "seamark:bridge:vertical_clearance",
+                    "seamark:bridge:clearance_height_closed", "seamark:bridge:vertical_clearance_closed"):
+            if clearance is None and tags.get(key):
+                try:
+                    clearance = float(tags[key].split()[0].replace(",", "."))
+                except ValueError:
+                    pass
+        item = {"id": w["id"], "pts": [[round(p["lon"], 6), round(p["lat"], 6)] for p in geometry]}
+        if (bridge_name := tags.get("seamark:name") or tags.get("bridge:name") or tags.get("name")):
+            item["n"] = bridge_name
+        if clearance is not None:
+            item["h"] = clearance
+        if (category := tags.get("seamark:bridge:category")):
+            item["c"] = category
+        result.append(item)
+    print(f"  {len(result)} bridges over water ({sum('h' in b for b in result)} with charted clearance)")
+    return result
 
 
 def main():
@@ -255,6 +308,7 @@ def main():
         "rows": rows, "cols": cols, "latStep": LAT_STEP, "lonStep": LON_STEP,
         "attribution": "Depth: EMODnet Bathymetry (CC BY 4.0). Coastline & seamarks: © OpenStreetMap contributors (ODbL).",
         "seamarks": seamarks(west, south, east, north),
+        "bridges": bridges(west, south, east, north, code),
     }
     (out / f"{region_id}.json").write_text(json.dumps(meta, ensure_ascii=False, separators=(",", ":")))
     print(f"Wrote {out}/{region_id}.depth ({len(packed) / 1e6:.1f} MB) and {region_id}.json")
