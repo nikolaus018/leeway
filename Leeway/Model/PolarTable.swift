@@ -56,11 +56,13 @@ nonisolated struct PolarTable: Codable, Equatable, Sendable {
     /// Reads the common plain-text polar formats: tab, semicolon or space separated, first row
     /// `TWA\TWS` (or similar) then the wind speeds, then rows of angle followed by speeds.
     static func parse(_ text: String, name: String) -> PolarTable? {
+        // With tabs or semicolons the comma is a decimal comma; otherwise it separates columns.
+        let commaDecimal = text.contains { $0 == "\t" || $0 == ";" }
         let rows = text.split(whereSeparator: \.isNewline)
-            .map { $0.split(whereSeparator: { $0 == "\t" || $0 == ";" || $0 == " " || $0 == "," }).map(String.init) }
+            .map { $0.split(whereSeparator: { $0 == "\t" || $0 == ";" || $0 == " " || (!commaDecimal && $0 == ",") }).map(String.init) }
             .filter { !$0.isEmpty }
         guard let header = rows.first else { return nil }
-        let winds = header.compactMap { Double($0) }
+        let winds = header.compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
         guard winds.count >= 2 else { return nil }
         var angles: [Double] = [], speeds: [[Double]] = []
         for row in rows.dropFirst() {

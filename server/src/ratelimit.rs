@@ -67,11 +67,18 @@ impl Limiter {
     }
 }
 
+/// The forwarding headers are only believed from a local proxy (the tunnel); a direct client could
+/// otherwise send a fresh address with every request and never run out of tokens.
 pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<IpAddr> {
     let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
-    header("cf-connecting-ip")
-        .or_else(|| header("x-forwarded-for").and_then(|v| v.split(',').next()))
-        .and_then(|v| v.trim().parse().ok())
+    let from_proxy = peer.is_none_or(|p| p.ip().is_loopback());
+    from_proxy
+        .then(|| {
+            header("cf-connecting-ip")
+                .or_else(|| header("x-forwarded-for").and_then(|v| v.split(',').next()))
+                .and_then(|v| v.trim().parse().ok())
+        })
+        .flatten()
         .or_else(|| peer.map(|p| p.ip()))
 }
 

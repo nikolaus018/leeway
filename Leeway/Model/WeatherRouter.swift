@@ -161,8 +161,10 @@ nonisolated enum WeatherRouter {
         if boat.propulsion == .motor { return boat.motorSpeed }
         guard let w = wind.wind(at: node.coordinate, time: node.time) else { return boat.motorSpeed }
         let twa = abs(Geo.angleDiff(w.from, heading))
-        let sailing = Polar.speed(twa: twa, tws: w.speed, boat: boat)
-        return sailing < boat.motorThreshold ? boat.motorSpeed : sailing
+        // Motor when sailing the course (tacking included) is too slow, as the passage simulator does.
+        // Otherwise the heading is sailed as is: 0 inside the no-go zone, so the router must tack.
+        let along = Polar.speedAlongCourse(twa: twa, tws: w.speed, boat: boat).speed
+        return along < boat.motorThreshold ? boat.motorSpeed : Polar.speed(twa: twa, tws: w.speed, boat: boat)
     }
 
     /// Merges runs of nearly the same heading into one leg, where the straight line stays clear.

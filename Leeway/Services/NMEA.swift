@@ -54,11 +54,14 @@ final class NMEAClient {
     private var depthReading: (Double, Date)?
     private var windReading: (Wind, Date)?
     private var headingReading: (Double, Date)?
+    /// When a true heading (HDT) last arrived; magnetic headings defer to it.
+    private var trueHeadingAt = Date.distantPast
     private var temperatureReading: (Double, Date)?
     private var connection: NWConnection?
     private var listener: NWListener?
     private var buffer = ""
     private var fragments: [String: [Int: String]] = [:]
+    private var reconnect: Task<Void, Never>?
     private let queue = DispatchQueue(label: "nmea")
 
     init() {
@@ -74,6 +77,7 @@ final class NMEAClient {
     // MARK: Connection
 
     func restart() {
+        reconnect?.cancel()
         connection?.cancel()
         listener?.cancel()
         connection = nil
@@ -92,7 +96,14 @@ final class NMEAClient {
             }
             self.connection = connection
             connection.start(queue: queue)
-            Self.receive(on: connection, deliver: deliver)
+            let closed: @Sendable () -> Void = { [weak self, weak connection] in
+                Task { @MainActor in
+                    guard let self, let connection, self.connection === connection else { return }
+                    self.state = .failed("Connection closed")
+                    self.scheduleReconnect()
+                }
+            }
+            Self.receive(on: connection, deliver: deliver, closed: closed)
         case .udp:
             do {
                 let parameters = NWParameters.udp
@@ -118,13 +129,18 @@ final class NMEAClient {
         switch new {
         case .failed(let error), .waiting(let error):
             state = .failed(error.localizedDescription)
-            // Gateways drop off when the boat's network restarts: keep trying.
-            Task {
-                try? await Task.sleep(for: .seconds(5))
-                if settings.enabled, case .failed = state { restart() }
-            }
+            scheduleReconnect()
         default:
             break
+        }
+    }
+
+    /// Gateways drop off when the boat's network restarts: keep trying.
+    private func scheduleReconnect() {
+        reconnect?.cancel()
+        reconnect = Task {
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled, settings.enabled, case .failed = state { restart() }
         }
     }
 
@@ -133,11 +149,15 @@ final class NMEAClient {
         { [weak self] text in Task { @MainActor in self?.ingest(text) } }
     }
 
-    nonisolated private static func receive(on connection: NWConnection, deliver: @escaping @Sendable (String) -> Void) {
+    nonisolated private static func receive(on connection: NWConnection, deliver: @escaping @Sendable (String) -> Void,
+                                            closed: @escaping @Sendable () -> Void) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 16384) { data, _, complete, error in
             if let data, let text = String(data: data, encoding: .ascii) { deliver(text) }
-            if complete || error != nil { return }
-            receive(on: connection, deliver: deliver)
+            if complete || error != nil {
+                closed()
+                return
+            }
+            receive(on: connection, deliver: deliver, closed: closed)
         }
     }
 
@@ -193,13 +213,16 @@ final class NMEAClient {
             }
             windReading = (Wind(angle: angle, speed: speed, relative: fields[2] == "R"), now)
         case "HDT":
-            if fields.count > 1, let h = Double(fields[1]) { headingReading = (h, now) }
+            if fields.count > 1, let h = Double(fields[1]) {
+                headingReading = (h, now)
+                trueHeadingAt = now
+            }
         case "HDG", "HDM":
             guard fields.count > 1, var h = Double(fields[1]) else { return }
             if tag.hasSuffix("HDG"), fields.count > 5, let variation = Double(fields[4]) {
                 h += fields[5] == "W" ? -variation : variation
             }
-            if headingReading.map({ now.timeIntervalSince($0.1) > 2 }) ?? true { headingReading = (Geo.normalize(h), now) }
+            if now.timeIntervalSince(trueHeadingAt) > 2 { headingReading = (Geo.normalize(h), now) }
         case "MTW":
             if fields.count > 1, let t = Double(fields[1]) { temperatureReading = (t, now) }
         case "VDM", "VDO":
@@ -253,7 +276,7 @@ final class NMEAClient {
                                   cog: cog.flatMap { $0 < 3600 ? Double($0) / 10 : nil },
                                   heading: heading.flatMap { $0 < 360 ? Double($0) : nil }, status: nil)
             if type == 19 {
-                bits.skip(6 + 1 + 4 + 1)
+                bits.skip(6 + 4) // second, regional
                 let name = bits.text(20)
                 let shipType = bits.uint(8)
                 let dims = (bits.uint(9), bits.uint(9), bits.uint(6), bits.uint(6))

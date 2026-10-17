@@ -70,6 +70,11 @@ nonisolated enum GPX {
         private var routePoints: [CLLocationCoordinate2D] = []
         private var trackPoints: [TrackPoint] = []
         private let iso = ISO8601DateFormatter()
+        private let isoFraction: ISO8601DateFormatter = {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return f
+        }()
 
         func parser(_ parser: XMLParser, didStartElement element: String, namespaceURI: String?, qualifiedName: String?,
                     attributes: [String: String] = [:]) {
@@ -103,7 +108,7 @@ nonisolated enum GPX {
             case "name":
                 if parent == "wpt" || parent == "rtept" || parent == "trkpt" { pointName = value } else if parent == "rte" || parent == "trk" { name = value }
             case "time" where parent == "trkpt":
-                point?.1 = iso.date(from: value)
+                point?.1 = iso.date(from: value) ?? isoFraction.date(from: value)
             case "wpt":
                 if let point { contents.waypoints.append((pointName ?? "Waypoint", point.0)) }
                 point = nil

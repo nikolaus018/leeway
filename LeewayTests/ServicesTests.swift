@@ -28,6 +28,29 @@ struct GPXTests {
 }
 
 @MainActor
+struct ParsingRegressionTests {
+    @Test func gpxReadsFractionalSecondTimes() {
+        let xml = "<gpx><trk><trkseg><trkpt lat=\"45\" lon=\"14\"><time>2025-06-01T10:00:00.250Z</time></trkpt><trkpt lat=\"45.1\" lon=\"14\"><time>2025-06-01T10:05:00Z</time></trkpt></trkseg></trk></gpx>"
+        let track = GPX.parse(Data(xml.utf8)).tracks.first
+        #expect(track?.points.first?.time != .distantPast)
+        #expect(track?.points.last?.time != .distantPast)
+    }
+
+    @Test func polarReadsDecimalCommas() {
+        let text = "TWA\\TWS;6;10\n40;3,5;5,5\n90;5,0;7,5\n150;4,5;6,5\n"
+        let table = PolarTable.parse(text, name: "t")
+        #expect(table?.windSpeeds == [6, 10])
+        #expect(table?.speeds[1] == [5.0, 7.5])
+    }
+
+    @Test func magneticHeadingFollowsAtFullRate() {
+        let nmea = NMEAClient()
+        nmea.parse("$HCHDM,100.0,M*28")
+        nmea.parse("$HCHDM,101.0,M*29")
+        #expect(nmea.heading == 101)
+    }
+}
+
 struct NMEATests {
     @Test func readsDepthWindAndHeading() {
         let nmea = NMEAClient()

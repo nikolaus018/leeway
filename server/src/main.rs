@@ -159,6 +159,12 @@ impl AppState {
         }
     }
 
+    /// A response that embeds `public_url` may only be shared by caches when that URL is configured:
+    /// otherwise it comes from request headers, and a shared copy would carry someone else's.
+    fn url_policy(&self, policy: Policy) -> Policy {
+        if self.config.public_url.is_some() { policy } else { Policy { edge: 0, stale: 0, ..policy } }
+    }
+
     /// This server's address as the client sees it, for URLs in responses.
     fn public_url(&self, headers: &HeaderMap) -> String {
         if let Some(url) = &self.config.public_url {
@@ -409,7 +415,7 @@ async fn search_places(State(state): State<AppState>, headers: HeaderMap, Query(
 async fn radar_frames(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
     let public = state.public_url(&headers);
     let frames = state.radar.list(&public).await?;
-    Ok(http::json(&headers, &frames, Policy::new(60, 60, 120)))
+    Ok(http::json(&headers, &frames, state.url_policy(Policy::new(60, 60, 120))))
 }
 
 async fn ais_vessels(State(state): State<AppState>, headers: HeaderMap, Query(q): Query<BoxQuery>) -> Result<Response, ApiError> {
@@ -488,7 +494,7 @@ async fn seamark_tile(
 
 async fn base_tilejson(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
     let public = state.public_url(&headers);
-    Ok(http::json(&headers, &state.base.tilejson(&public).await?, Policy::new(3600, 3600, 86400)))
+    Ok(http::json(&headers, &state.base.tilejson(&public).await?, state.url_policy(Policy::new(3600, 3600, 86400))))
 }
 
 async fn base_tile(

@@ -171,15 +171,15 @@ impl Warnings {
         };
         if data.is_none() {
             let url = self.area_url.replace("{code}", code);
-            if let Ok(response) = http.get(&url).send().await {
-                match response.status().as_u16() {
-                    200 => data = response.bytes().await.ok().map(|b| b.to_vec()),
-                    404 => data = Some(Vec::new()),
-                    _ => return None, // try again next refresh
-                }
-                if let (Some(f), Some(d)) = (&file, &data) {
-                    crate::cache::write(f, d).await;
-                }
+            // Network errors and bad statuses are not remembered: try again next refresh.
+            let response = http.get(&url).send().await.ok()?;
+            match response.status().as_u16() {
+                200 => data = Some(response.bytes().await.ok()?.to_vec()),
+                404 => data = Some(Vec::new()),
+                _ => return None,
+            }
+            if let (Some(f), Some(d)) = (&file, &data) {
+                crate::cache::write(f, d).await;
             }
         }
         let area = data.and_then(|d| parse_area(&d));
