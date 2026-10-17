@@ -1,18 +1,29 @@
 //! Forecasts from Open-Meteo, merged into one series per point: wind from the finest model that
 //! covers each hour, waves, swell and currents (including tidal streams) from the marine API,
-//! and general weather. Points are snapped to a 0.01° grid and cached, so neighbouring routes and
-//! map views share upstream calls.
+//! and general weather.
+//!
+//! Every user shares one cache. Points are snapped to the models' resolution, concurrent requests
+//! for the same points share one upstream call, results are kept on disk across restarts, and an
+//! hour-old forecast is served at once while a fresh one is fetched in the background.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use anyhow::{anyhow, Context, Result};
-use futures_util::future::try_join_all;
+use futures_util::{
+    future::{try_join_all, BoxFuture, Shared},
+    FutureExt,
+};
 use moka::future::Cache;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::Semaphore;
 
-use crate::config::Config;
+use crate::{config::Config, metrics};
 
 /// Wind models, finest first: (name the app shows, Open-Meteo model id).
 /// ICON-2I is ItaliaMeteo's 2.2 km Adriatic model and resolves the bura; the global
@@ -27,11 +38,17 @@ const CHUNK: usize = 25;
 /// The free Open-Meteo API refuses too many concurrent requests from one address.
 const UPSTREAM_CONCURRENCY: usize = 2;
 pub const MAX_POINTS: usize = 200;
+/// Seconds a forecast is current; models update every one to three hours.
+const FRESH: i64 = 3600;
+/// Older than this, a forecast is fetched again before answering.
+const STALE: i64 = 6 * 3600;
+/// If Open-Meteo is down, forecasts up to this old are still better than nothing.
+const LAST_RESORT: i64 = 24 * 3600;
 
 /// Hourly forecast for one point. Optional series are left out when the source has nothing there
 /// (for example marine data on a lake).
-#[derive(Serialize, Clone, Debug, Default, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Series {
     pub lat: f64,
     pub lon: f64,
@@ -43,7 +60,7 @@ pub struct Series {
     pub wind_from: Vec<Option<f64>>,
     pub gust: Vec<Option<f64>>,
     /// Which model supplied the wind each hour (see `WIND_MODELS`).
-    pub wind_model: Vec<Option<&'static str>>,
+    pub wind_model: Vec<Option<String>>,
     /// Significant wave height, metres.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wave_height: Vec<Option<f64>>,
@@ -84,7 +101,7 @@ pub struct Series {
 }
 
 /// How much to fetch for a point.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Detail {
     /// Everything, wind from the finest model per hour: for routes and the local forecast.
     Full,
@@ -93,22 +110,53 @@ pub enum Detail {
     Wind,
 }
 
+impl Detail {
+    fn name(self) -> &'static str {
+        match self {
+            Detail::Full => "full",
+            Detail::Wind => "wind",
+        }
+    }
+}
+
 /// Grid key: hundredths of a degree.
 type Key = (i32, i32);
 
-pub fn key(lat: f64, lon: f64) -> Key {
-    ((lat * 100.0).round() as i32, (lon * 100.0).round() as i32)
+/// Route and local forecasts snap to 0.02° (about the 2.2 km model grid), so nearby requests share
+/// a cache entry; wind-grid nodes are already on round multiples and keep 0.01°.
+pub fn key(lat: f64, lon: f64, detail: Detail) -> Key {
+    match detail {
+        Detail::Full => (((lat / 0.02).round() * 2.0) as i32, ((lon / 0.02).round() * 2.0) as i32),
+        Detail::Wind => ((lat * 100.0).round() as i32, (lon * 100.0).round() as i32),
+    }
 }
 
 fn coordinate(k: Key) -> (f64, f64) {
     (k.0 as f64 / 100.0, k.1 as f64 / 100.0)
 }
 
+#[derive(Serialize, Deserialize)]
+struct Entry {
+    /// Unix seconds.
+    fetched: i64,
+    series: Arc<Series>,
+}
+
+impl Entry {
+    fn age(&self) -> i64 {
+        crate::now() - self.fetched
+    }
+}
+
+type Fetched = Arc<HashMap<Key, Arc<Entry>>>;
+type Pending = Shared<BoxFuture<'static, Result<Fetched, Arc<String>>>>;
+
 pub struct Forecasts {
     http: reqwest::Client,
     config: Arc<Config>,
-    cache: Cache<Key, Arc<Series>>,
-    wind_cache: Cache<Key, Arc<Series>>,
+    memory: Cache<(Detail, Key), Arc<Entry>>,
+    /// Upstream fetches under way, so concurrent requests for a point wait for the same one.
+    inflight: Mutex<HashMap<(Detail, Key), Pending>>,
     upstream: Semaphore,
 }
 
@@ -117,51 +165,160 @@ impl Forecasts {
         Forecasts {
             http,
             config,
-            // Models update a few times a day; an hour old is still current.
-            cache: Cache::builder().max_capacity(100_000).time_to_live(Duration::from_secs(3600)).build(),
-            // Outlives the 3-hourly background refresh, so warm points never lapse.
-            wind_cache: Cache::builder().max_capacity(100_000).time_to_live(Duration::from_secs(4 * 3600)).build(),
+            memory: Cache::builder().max_capacity(200_000).time_to_live(Duration::from_secs(STALE as u64)).build(),
+            inflight: Mutex::new(HashMap::new()),
             upstream: Semaphore::new(UPSTREAM_CONCURRENCY),
         }
     }
 
-    /// Series for each point, in order, snapped to the 0.01° grid.
-    pub async fn series(&self, points: &[(f64, f64)], detail: Detail) -> Result<Vec<Arc<Series>>> {
-        let cache = if detail == Detail::Full { &self.cache } else { &self.wind_cache };
-        let keys: Vec<Key> = points.iter().map(|&(lat, lon)| key(lat, lon)).collect();
+    /// Series for each point, in order, snapped to the grid for `detail`.
+    pub async fn series(self: &Arc<Self>, points: &[(f64, f64)], detail: Detail) -> Result<Vec<Arc<Series>>> {
+        let keys: Vec<Key> = points.iter().map(|&(lat, lon)| key(lat, lon, detail)).collect();
+        let mut unique = keys.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        let cache = [("cache", if detail == Detail::Full { "forecast" } else { "wind" })];
+        metrics::add("seadata_cache_requests_total", &cache, unique.len() as u64);
+
         let mut found: HashMap<Key, Arc<Series>> = HashMap::new();
-        let mut missing: Vec<Key> = Vec::new();
-        for &k in &keys {
-            if found.contains_key(&k) || missing.contains(&k) {
-                continue;
-            }
-            match cache.get(&k).await {
-                Some(series) => {
-                    found.insert(k, series);
+        let (mut missing, mut refresh) = (Vec::new(), Vec::new());
+        for &k in &unique {
+            let entry = match self.memory.get(&(detail, k)).await {
+                Some(entry) => Some(entry),
+                None => match self.load(detail, k).await.filter(|e| e.age() < STALE) {
+                    Some(entry) => {
+                        metrics::inc("seadata_cache_disk_hits_total", &cache);
+                        self.memory.insert((detail, k), entry.clone()).await;
+                        Some(entry)
+                    }
+                    None => None,
+                },
+            };
+            match entry {
+                Some(entry) => {
+                    if entry.age() > FRESH {
+                        refresh.push(k);
+                    }
+                    found.insert(k, entry.series.clone());
                 }
                 None => missing.push(k),
             }
         }
-        let fetched = try_join_all(missing.chunks(CHUNK).map(|chunk| self.fetch(chunk, detail))).await?;
-        for (k, series) in missing.iter().zip(fetched.into_iter().flatten()) {
-            let series = Arc::new(series);
-            cache.insert(*k, series.clone()).await;
-            found.insert(*k, series);
+        // Serve the hour-old forecast now; fetch the new one for whoever asks next.
+        if !refresh.is_empty() {
+            metrics::add("seadata_cache_stale_served_total", &cache, refresh.len() as u64);
+            drop(self.start(&refresh, detail));
+        }
+        if !missing.is_empty() {
+            metrics::add("seadata_cache_misses_total", &cache, missing.len() as u64);
+            match try_join_all(self.start(&missing, detail)).await {
+                Ok(results) => {
+                    for fetched in results {
+                        for (k, entry) in fetched.iter() {
+                            found.insert(*k, entry.series.clone());
+                        }
+                    }
+                }
+                Err(error) => {
+                    // Open-Meteo down: yesterday's forecast is better than none.
+                    for &k in &missing {
+                        if let Some(entry) = self.load(detail, k).await.filter(|e| e.age() < LAST_RESORT) {
+                            found.insert(k, entry.series.clone());
+                        }
+                    }
+                    if missing.iter().any(|k| !found.contains_key(k)) {
+                        return Err(anyhow!("{error}"));
+                    }
+                }
+            }
         }
         keys.iter().map(|k| found.get(k).cloned().ok_or_else(|| anyhow!("no forecast for {k:?}"))).collect()
     }
 
-    /// Keeps the coarse grid over `bbox` (south, west, north, east) cached, so zoomed-out map
-    /// views never wait on Open-Meteo.
+    /// Fetches `keys` unless they're already being fetched; the futures resolve when they're in.
+    fn start(self: &Arc<Self>, keys: &[Key], detail: Detail) -> Vec<Pending> {
+        let Ok(mut inflight) = self.inflight.lock() else { return Vec::new() };
+        let mut pending: Vec<Pending> = Vec::new();
+        let mut todo = Vec::new();
+        for &k in keys {
+            match inflight.get(&(detail, k)) {
+                Some(p) => pending.push(p.clone()),
+                None => todo.push(k),
+            }
+        }
+        for chunk in todo.chunks(CHUNK) {
+            let (this, chunk_keys) = (self.clone(), chunk.to_vec());
+            // Spawned, so it finishes (and lands in the cache) even if the asking client goes away.
+            let task = tokio::spawn(async move {
+                let result = this.fetch_and_store(&chunk_keys, detail).await;
+                if let Ok(mut inflight) = this.inflight.lock() {
+                    for k in &chunk_keys {
+                        inflight.remove(&(detail, *k));
+                    }
+                }
+                result
+            });
+            let shared: Pending = async move {
+                match task.await {
+                    Ok(Ok(fetched)) => Ok(Arc::new(fetched)),
+                    Ok(Err(error)) => Err(Arc::new(format!("{error:#}"))),
+                    Err(error) => Err(Arc::new(error.to_string())),
+                }
+            }
+            .boxed()
+            .shared();
+            for &k in chunk {
+                inflight.insert((detail, k), shared.clone());
+            }
+            pending.push(shared);
+        }
+        pending
+    }
+
+    async fn fetch_and_store(&self, keys: &[Key], detail: Detail) -> Result<HashMap<Key, Arc<Entry>>> {
+        let series = self.fetch(keys, detail).await?;
+        let mut out = HashMap::new();
+        for (&k, series) in keys.iter().zip(series) {
+            let entry = Arc::new(Entry { fetched: crate::now(), series: Arc::new(series) });
+            self.memory.insert((detail, k), entry.clone()).await;
+            if let Ok(json) = serde_json::to_vec(entry.as_ref()) {
+                crate::cache::write(&self.path(detail, k), &json).await;
+            }
+            out.insert(k, entry);
+        }
+        Ok(out)
+    }
+
+    fn path(&self, detail: Detail, k: Key) -> PathBuf {
+        self.config.cache_dir.join("forecast").join(detail.name()).join(format!("{}_{}.json", k.0, k.1))
+    }
+
+    async fn load(&self, detail: Detail, k: Key) -> Option<Arc<Entry>> {
+        let data = tokio::fs::read(self.path(detail, k)).await.ok()?;
+        serde_json::from_slice::<Entry>(&data).ok().map(Arc::new)
+    }
+
+    /// Keeps the coarse grid over `bbox` (south, west, north, east) fresh, so zoomed-out map views
+    /// never wait on Open-Meteo. Runs every three hours, when new model runs are out, one chunk at a
+    /// time so users' own requests always get an upstream slot.
     pub fn keep_warm(self: Arc<Self>, bbox: [f64; 4]) {
         tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(60)).await;
             loop {
                 let [south, west, north, east] = bbox;
                 let nodes = nodes_at(WARM_STEP, west, south, east, north);
+                let keys: Vec<Key> = nodes.iter().map(|&(lat, lon)| key(lat, lon, Detail::Wind)).collect();
                 let started = std::time::Instant::now();
-                match self.series(&nodes, Detail::Wind).await {
-                    Ok(_) => tracing::info!("wind grid warm: {} points in {:?}", nodes.len(), started.elapsed()),
-                    Err(error) => tracing::warn!("wind grid warm-up failed: {error:#}"),
+                let mut failed = None;
+                for chunk in keys.chunks(CHUNK) {
+                    if let Err(error) = try_join_all(self.start(chunk, Detail::Wind)).await {
+                        failed = Some(error);
+                        break;
+                    }
+                }
+                match failed {
+                    None => tracing::info!("wind grid warm: {} points in {:?}", nodes.len(), started.elapsed()),
+                    Some(error) => tracing::warn!("wind grid warm-up failed: {error}"),
                 }
                 tokio::time::sleep(Duration::from_secs(3 * 3600)).await;
             }
@@ -232,7 +389,7 @@ impl Forecasts {
         loop {
             let response = {
                 let _permit = self.upstream.acquire().await?;
-                self.http.get(base).query(&query).timeout(Duration::from_secs(60)).send().await
+                metrics::upstream("open-meteo", self.http.get(base).query(&query).timeout(Duration::from_secs(60)).send()).await
             };
             let retry = match response {
                 Ok(response) if response.status().is_success() => return Ok(response.json().await?),
@@ -343,13 +500,13 @@ pub fn merge(lat: f64, lon: f64, wind: &Hourly, weather: Option<&Hourly>, marine
                 wind.get(&format!("wind_speed_10m_{id}"), i),
                 wind.get(&format!("wind_direction_10m_{id}"), i),
                 wind.get(&format!("wind_gusts_10m_{id}"), i),
-                Some(*label),
+                Some(label.to_string()),
             ),
             None if plain => (
                 wind.get("wind_speed_10m", i),
                 wind.get("wind_direction_10m", i),
                 wind.get("wind_gusts_10m", i),
-                Some("global"),
+                Some("global".to_string()),
             ),
             None => (None, None, None, None),
         };
@@ -516,7 +673,7 @@ mod tests {
             }
         }));
         let s = merge(45.0, 14.0, &wind[0], None, marine.first());
-        assert_eq!(s.wind_model, vec![Some("icon2I"), Some("iconEU"), Some("global")]);
+        assert_eq!(s.wind_model, vec![Some("icon2I".into()), Some("iconEU".into()), Some("global".into())]);
         assert_eq!(s.wind_speed, vec![Some(10.0), Some(12.0), Some(7.0)]);
         // Gusts never below the mean wind.
         assert_eq!(s.gust, vec![Some(25.0), Some(12.0), Some(12.0)]);

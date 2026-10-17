@@ -21,6 +21,28 @@ pub struct Config {
     pub ais_bbox: [f64; 4],
     /// Sent upstream as the User-Agent, as OpenSeaMap and Open-Meteo ask.
     pub user_agent: String,
+    /// This server's public address for URLs it hands out (TileJSON, radar frames); taken from the
+    /// request's Host header when unset.
+    pub public_url: Option<String>,
+    /// OpenFreeMap's TileJSON, which names the current versioned tile URL.
+    pub base_tilejson_url: String,
+    pub fonts_url: String,
+    /// Terrarium-encoded elevation tiles (AWS Terrain Tiles) for worldwide depth.
+    pub terrain_url: String,
+    /// Satellite imagery tiles with `{z}/{x}/{y}`.
+    pub satellite_url: String,
+    /// RainViewer's frame list.
+    pub radar_url: String,
+    /// MeteoAlarm Atom feed with `{country}`; empty turns warnings off.
+    pub warnings_url: String,
+    /// Photon geocoder; empty searches the chart packs only.
+    pub search_url: String,
+    /// MapLibre styles served at `/v1/style/`.
+    pub styles_dir: PathBuf,
+    /// Answer `/v1/` only to requests carrying `X-Leeway-Client`.
+    pub require_client_header: bool,
+    /// Disk cache cap per tile cache, bytes.
+    pub cache_max_bytes: u64,
 }
 
 impl Config {
@@ -48,6 +70,22 @@ impl Config {
             user_agent: var("USER_AGENT").unwrap_or_else(|| {
                 format!("Leeway-seadata/{} (+https://github.com/nikolaus018/leeway)", env!("CARGO_PKG_VERSION"))
             }),
+            public_url: var("PUBLIC_URL").map(|u| u.trim_end_matches('/').to_string()),
+            base_tilejson_url: var("BASE_TILEJSON_URL").unwrap_or_else(|| "https://tiles.openfreemap.org/planet".into()),
+            fonts_url: var("FONTS_URL").unwrap_or_else(|| "https://tiles.openfreemap.org/fonts".into()),
+            terrain_url: var("TERRAIN_URL")
+                .unwrap_or_else(|| "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png".into()),
+            // The 2016 mosaic is the CC BY 4.0 one; later years are non-commercial.
+            satellite_url: var("SATELLITE_URL").unwrap_or_else(|| {
+                "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg".into()
+            }),
+            radar_url: var("RADAR_URL").unwrap_or_else(|| "https://api.rainviewer.com/public/weather-maps.json".into()),
+            warnings_url: env::var("WARNINGS_URL")
+                .unwrap_or_else(|_| "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-{country}".into()),
+            search_url: env::var("SEARCH_URL").unwrap_or_else(|_| "https://photon.komoot.io/api".into()),
+            styles_dir: var("STYLES_DIR").map(PathBuf::from).unwrap_or_else(default_styles_dir),
+            require_client_header: var("REQUIRE_CLIENT_HEADER").is_some_and(|v| v == "1" || v == "true"),
+            cache_max_bytes: var("CACHE_MAX_GB").and_then(|v| v.parse::<f64>().ok()).map_or(8 << 30, |gb| (gb * 1e9) as u64),
         }
     }
 }
@@ -59,6 +97,15 @@ fn default_charts_dir() -> PathBuf {
         return local;
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../Leeway/Charts")
+}
+
+/// `styles/` next to the server when deployed, else the repo's `server/styles`.
+fn default_styles_dir() -> PathBuf {
+    let local = PathBuf::from("styles");
+    if local.is_dir() {
+        return local;
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("styles")
 }
 
 fn parse_bbox(s: &str) -> Option<[f64; 4]> {

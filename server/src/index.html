@@ -15,7 +15,7 @@
 </head>
 <body>
 <h1>seadata</h1>
-<p>Data server for the Leeway sailing app. Forecasts, seamarks, chart packs and AIS in one place, cached.</p>
+<p>Data server for the Leeway sailing app. Base map, depth, forecasts, seamarks, chart packs, warnings and AIS in one place, cached for every user.</p>
 <ul>
   <li><code>GET /v1/info</code>: what this server offers</li>
   <li><code>GET /v1/forecast?points=45.32,14.44;44.53,14.47</code>: hourly wind (finest model per hour), gusts, waves, swell, currents, weather</li>
@@ -23,7 +23,15 @@
   <li><code>GET /v1/tiles/seamark/{z}/{x}/{y}.png</code>: OpenSeaMap seamark tiles</li>
   <li><code>GET /v1/charts</code> and <code>/v1/charts/files/{name}</code>: offline chart packs</li>
   <li><code>GET /v1/ais?west=13&amp;south=44&amp;east=15&amp;north=46</code>: live vessels (if configured)</li>
+  <li><code>GET /v1/tiles/base.json</code>, <code>/v1/tiles/base/{z}/{x}/{y}.pbf</code>, <code>/v1/fonts/{fontstack}/{range}.pbf</code>: worldwide vector base map</li>
+  <li><code>GET /v1/tiles/bathy/{z}/{x}/{y}.pbf</code>: worldwide depth areas and contours</li>
+  <li><code>GET /v1/tiles/satellite/{z}/{x}/{y}.jpg</code>: Sentinel-2 imagery</li>
+  <li><code>GET /v1/radar</code>: rain radar frames</li>
+  <li><code>GET /v1/sealevel?lat=45.33&amp;lon=14.42</code>: tide and surge</li>
+  <li><code>GET /v1/warnings?west=13&amp;south=42&amp;east=19&amp;north=46</code>: official weather warnings</li>
+  <li><code>GET /v1/search?q=punat</code>: harbours, anchorages and places</li>
+  <li><code>GET /metrics</code>: cache and upstream statistics</li>
 </ul>
-<p>Weather data by Open-Meteo.com (CC BY 4.0). Seamarks © OpenSeaMap. Charts: EMODnet Bathymetry, © OpenStreetMap contributors. Not for navigation.</p>
+<p>Base map: OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors. Weather by Open-Meteo.com (CC BY 4.0). Seamarks © OpenSeaMap. Charts: EMODnet Bathymetry. Satellite: Sentinel-2 cloudless 2016 by EOX (CC BY 4.0). Radar: RainViewer. Warnings: MeteoAlarm. Not for navigation.</p>
 </body>
 </html>
