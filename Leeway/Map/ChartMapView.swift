@@ -56,11 +56,24 @@ struct ChartMapView: UIViewRepresentable {
 
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tapped(_:)))
         let press = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.pressed(_:)))
+        // Double-tap-and-drag zoom, reversed: dragging up zooms in. MapLibre's own is the long press
+        // that starts with a tap and has no delay; replace it with one that goes the other way.
+        let quickZoom = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.quickZoomed(_:)))
+        quickZoom.numberOfTapsRequired = 1
+        quickZoom.minimumPressDuration = 0
+        quickZoom.delegate = c
+        c.quickZoom = quickZoom
         for recognizer in map.gestureRecognizers ?? [] {
             if let double = recognizer as? UITapGestureRecognizer, double.numberOfTapsRequired == 2 {
                 tap.require(toFail: double)
+                quickZoom.require(toFail: double)
+            }
+            if let builtIn = recognizer as? UILongPressGestureRecognizer, builtIn.numberOfTapsRequired == 1,
+               builtIn.minimumPressDuration == 0 {
+                builtIn.isEnabled = false
             }
         }
+        map.addGestureRecognizer(quickZoom)
         tap.delegate = c
         press.delegate = c
         map.addGestureRecognizer(tap)
@@ -379,6 +392,27 @@ struct ChartMapView: UIViewRepresentable {
         /// A long press ends with the finger lifting, which the tap recogniser also sees.
         private var lastPress = Date.distantPast
 
+        var quickZoom: UILongPressGestureRecognizer?
+        private var quickZoomStart: (y: CGFloat, zoom: Double)?
+
+        /// Points of finger travel per zoom level.
+        private static let pointsPerZoomLevel: CGFloat = 75
+
+        @objc func quickZoomed(_ gesture: UILongPressGestureRecognizer) {
+            guard let map = gesture.view as? MLNMapView else { return }
+            let y = gesture.location(in: map).y
+            switch gesture.state {
+            case .began:
+                quickZoomStart = (y, map.zoomLevel)
+            case .changed:
+                guard let start = quickZoomStart else { return }
+                let zoom = start.zoom - Double((y - start.y) / Self.pointsPerZoomLevel)
+                map.setZoomLevel(min(max(zoom, map.minimumZoomLevel), map.maximumZoomLevel), animated: false)
+            default:
+                quickZoomStart = nil
+            }
+        }
+
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
             guard let map = gesture.view as? MLNMapView, Date.now.timeIntervalSince(lastPress) > 0.5 else { return }
             let point = gesture.location(in: map)
@@ -421,7 +455,8 @@ struct ChartMapView: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            true
+            // The zoom drag must not also pan the map.
+            g !== quickZoom && other !== quickZoom
         }
 
         /// What's under a tap: a ship, a charted object, a zone, and the charted depth.
