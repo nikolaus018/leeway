@@ -37,7 +37,7 @@ struct ChartStyle: Equatable {
 
     /// Live sources the map view fills at runtime.
     enum Live: String, CaseIterable {
-        case grid, warnings, track, route, underway, samples, legs, wind, aisVectors, ais, marks, inspect, measure
+        case grid, track, route, underway, samples, legs, wind, aisVectors, ais, marks, inspect, measure
     }
 
     /// Contours the packs and the worldwide depth carry; the safety contour is the first one at or
@@ -400,12 +400,7 @@ struct ChartStyle: Equatable {
     /// Route, track, AIS, wind and the rest, drawn on top of the chart.
     private func liveLayers(colours c: Colours) -> [[String: Any]] {
         let route = palette == .night ? "#5AA9FF" : "#0A6FD6"
-        let warningColour: [Any] = ["match", ["get", "level"], "red", "#E5322D", "orange", "#F08A1C", "#E8B400"]
         return [
-            layer("live-warnings-fill", "fill", source: "live-warnings", maxzoom: 11,
-                  paint: ["fill-color": warningColour, "fill-opacity": 0.1]),
-            layer("live-warnings-line", "line", source: "live-warnings", maxzoom: 11,
-                  paint: ["line-color": warningColour, "line-width": 1.5, "line-dasharray": [3, 2], "line-opacity": 0.8]),
             layer("live-track", "line", source: "live-track",
                   layout: ["line-cap": "round", "line-join": "round"],
                   paint: ["line-color": "#F28C1E", "line-width": 3]),

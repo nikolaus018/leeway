@@ -15,7 +15,6 @@ struct ChartMapView: UIViewRepresentable {
     var vessels: [VesselMarker]
     var underway: UnderwayMapState
     var marks: [UserMark]
-    var warnings: [WeatherWarning]
     var radar: RadarFrame?
     var measure: [CLLocationCoordinate2D]
     var inspected: CLLocationCoordinate2D?
@@ -192,7 +191,6 @@ struct ChartMapView: UIViewRepresentable {
             set(.marks, key: p.marks, on: style) {
                 p.marks.map { point($0.coordinate, ["name": $0.name, "icon": "mark-\($0.symbol)", "id": $0.id.uuidString]) }
             }
-            set(.warnings, key: p.warnings.map(\.id), on: style) { warningFeatures(p.warnings) }
             set(.measure, key: p.measure.map { "\($0.latitude),\($0.longitude)" }, on: style) { measureFeatures(p.measure) }
             set(.inspect, key: p.inspected.map { "\($0.latitude),\($0.longitude)" } ?? "", on: style) {
                 p.inspected.map { [point($0, [:])] } ?? []
@@ -218,7 +216,7 @@ struct ChartMapView: UIViewRepresentable {
             let layer = MLNRasterStyleLayer(identifier: "radar", source: source)
             layer.rasterOpacity = NSExpression(forConstantValue: 0.6)
             layer.rasterFadeDuration = NSExpression(forConstantValue: 0)
-            if let below = style.layer(withIdentifier: "live-warnings-fill") {
+            if let below = style.layer(withIdentifier: "live-track") {
                 style.insertLayer(layer, below: below)
             } else {
                 style.addLayer(layer)
@@ -614,15 +612,6 @@ private func underwayFeatures(_ state: UnderwayMapState) -> [MLNShape] {
     }
     if let mob = state.mob { features.append(point(mob.coordinate, ["icon": "mob-mark"])) }
     return features
-}
-
-private func warningFeatures(_ warnings: [WeatherWarning]) -> [MLNShape] {
-    warnings.flatMap { w in
-        (w.polygon ?? []).compactMap { ring -> MLNShape? in
-            let points = ring.compactMap { $0.count >= 2 ? CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) : nil }
-            return points.count >= 3 ? polygon(points, ["level": w.level ?? "yellow"]) : nil
-        }
-    }
 }
 
 private func measureFeatures(_ points: [CLLocationCoordinate2D]) -> [MLNShape] {

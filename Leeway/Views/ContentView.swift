@@ -85,7 +85,6 @@ struct ChartTabView: View {
             vessels: vesselMarkers,
             underway: underwayMap,
             marks: model.marks,
-            warnings: model.warnings.filter { $0.isMarine && ($0.expiresDate ?? .distantFuture) > .now },
             radar: model.radarFrame,
             measure: model.measurePoints,
             inspected: model.inspection?.coordinate,

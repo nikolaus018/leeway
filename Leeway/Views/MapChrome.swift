@@ -40,10 +40,6 @@ struct TopChrome: View {
                     InstrumentStrip()
                         .transition(.opacity)
                 }
-                if let warning = model.activeWarning, !model.isEditing, model.underway.mob == nil {
-                    WarningPill(warning: warning)
-                        .transition(.opacity)
-                }
             }
             .frame(maxWidth: 400, alignment: .leading)
             Spacer(minLength: 0)
@@ -274,35 +270,6 @@ struct MeasureBanner: View {
         let d = Geo.distanceNM(first, last)
         let distance = d < 0.3 ? "\(Int((d * 1852).rounded())) m" : String(format: "%.2f NM", d)
         return String(format: "%03.0f° · ", Geo.bearing(first, last)) + distance
-    }
-}
-
-/// An official warning for the area, in one line; tap for the text.
-struct WarningPill: View {
-    var warning: WeatherWarning
-    @State private var expanded = false
-
-    var body: some View {
-        Button {
-            withAnimation(.smooth(duration: 0.2)) { expanded.toggle() }
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                Label(warning.title, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(expanded ? nil : 1)
-                if expanded, let description = warning.description {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .frame(maxWidth: 360, alignment: .leading)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(warning.colour)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
     }
 }
 

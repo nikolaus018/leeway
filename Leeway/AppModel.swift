@@ -800,11 +800,6 @@ final class AppModel {
     private(set) var warnings: [WeatherWarning] = []
     private var warningsFetched: (box: GeoBox, at: Date)?
 
-    /// The most severe current marine warning for where the map is.
-    var activeWarning: WeatherWarning? {
-        warnings.first { $0.isMarine && ($0.expiresDate ?? .distantFuture) > .now && ($0.onsetDate ?? .distantPast) < .now.addingTimeInterval(12 * 3600) }
-    }
-
     private func refreshWarnings() {
         guard let box = visibleBox, box.width < 15 else { return }
         if let last = warningsFetched, last.box.contains(box), Date.now.timeIntervalSince(last.at) < 900 { return }
