@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		02D6FC6BEC1AECE375666EA4 /* SearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7430E964825E73B4E23027DD /* SearchSheet.swift */; };
+		07471BE3B75004F56FD2CF24 /* ServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713127C69E2434FB93B1CC90 /* ServicesTests.swift */; };
 		0F654DD20A77AD3A13CD65DC /* LeewayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7511A622C3058332BF87ED39 /* LeewayApp.swift */; };
 		139DB14FCB5059159F49471D /* NMEA.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E1CEF5FD5594EBA71BF8D7 /* NMEA.swift */; };
 		13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32E9D2DD05AF42C421217387 /* PassageSimulator.swift */; };
@@ -16,6 +17,8 @@
 		219F821DFE36068178B3C2A1 /* ChartStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B8C081EABD185ABA2579BF /* ChartStyle.swift */; };
 		2506E192CC2EB1A7B8FBFB89 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 51E12A757CF6A294C17EAB91 /* MapLibre */; };
 		2F22744FD3620E7BF2A7FAD1 /* UnderwayLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */; };
+		390959FEEA812EB0A4615648 /* OfflineMaps.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3634DEA43B97B03002D439 /* OfflineMaps.swift */; };
+		3A84240C7FBCC9F1BD5B2CD7 /* WeatherRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A2D902B0A7DCFBA5423ABD /* WeatherRouter.swift */; };
 		40F6AE66E0E2B97EBC6C2B4D /* ChartOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5938B4FFF285100FF120FF77 /* ChartOverlays.swift */; };
 		40FC118748F1ACE8B9075B1B /* GPX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D642B9F28D5AC5C169C58E /* GPX.swift */; };
 		41440C1344C0A10FB1E594BC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4353055592D8D20873CF331 /* AppModel.swift */; };
@@ -34,7 +37,9 @@
 		6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
 		835C00D16C1EB15447654ED9 /* ChartMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */; };
 		867D3251A6B82D3568D8A7BA /* LeewayWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9AFBE0C19BE461BCB93CACFC /* PolarTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DAF7C29A85C14CB73C7B4C /* PolarTable.swift */; };
 		ABA00B80D4F3B941F068ED82 /* LegRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A36D6D617334874E5388BE /* LegRow.swift */; };
+		AE2ACD11A13BC77510753932 /* RoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CC140018DCD447BD0874C2C /* RoutingTests.swift */; };
 		B24CA7880074F5C5702A69BD /* Polar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA318DCECB6195CF45242E2 /* Polar.swift */; };
 		B4FA6116BAD404706B373070 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C413FE184C3EC462C037FD5 /* ContentView.swift */; };
 		B9FCAEEC56B4F1CE0812EBB2 /* Sun.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0007F434BC83411D393D4D7 /* Sun.swift */; };
@@ -52,6 +57,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		3D193D783D63961689E44E34 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB8AD6106F2DD3C14CA57CFB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0532F9C097B3BD703E4F66F9;
+			remoteInfo = Leeway;
+		};
 		8FEF4F733C41B5EE0815740A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = BB8AD6106F2DD3C14CA57CFB /* Project object */;
@@ -80,6 +92,7 @@
 		10D642B9F28D5AC5C169C58E /* GPX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPX.swift; sourceTree = "<group>"; };
 		18C224E8BAB29A9C87B37793 /* Leeway.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Leeway.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19A36D6D617334874E5388BE /* LegRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegRow.swift; sourceTree = "<group>"; };
+		1CC140018DCD447BD0874C2C /* RoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingTests.swift; sourceTree = "<group>"; };
 		209F0DD62480A15FAD2A6271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTracker.swift; sourceTree = "<group>"; };
 		2FA318DCECB6195CF45242E2 /* Polar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Polar.swift; sourceTree = "<group>"; };
@@ -92,6 +105,7 @@
 		5938B4FFF285100FF120FF77 /* ChartOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlays.swift; sourceTree = "<group>"; };
 		5C413FE184C3EC462C037FD5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		70DCF24BFFDF645642194F67 /* DepartureChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureChart.swift; sourceTree = "<group>"; };
+		713127C69E2434FB93B1CC90 /* ServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicesTests.swift; sourceTree = "<group>"; };
 		726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSheet.swift; sourceTree = "<group>"; };
 		7430E964825E73B4E23027DD /* SearchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSheet.swift; sourceTree = "<group>"; };
 		7511A622C3058332BF87ED39 /* LeewayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeewayApp.swift; sourceTree = "<group>"; };
@@ -99,8 +113,10 @@
 		8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStore.swift; sourceTree = "<group>"; };
 		8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRegion.swift; sourceTree = "<group>"; };
 		8EFE94CB30882F51F914BB57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		92DAF7C29A85C14CB73C7B4C /* PolarTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolarTable.swift; sourceTree = "<group>"; };
 		94967BD098A1B2EE451C00FF /* Seadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Seadata.swift; sourceTree = "<group>"; };
 		9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartMapView.swift; sourceTree = "<group>"; };
+		A8A2D902B0A7DCFBA5423ABD /* WeatherRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherRouter.swift; sourceTree = "<group>"; };
 		A941943CD9C1660AB75F7EA7 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		B524F876411C0E585A45E69D /* Charts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Charts; path = Leeway/Charts; sourceTree = SOURCE_ROOT; };
 		BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
@@ -109,6 +125,8 @@
 		C6E1CEF5FD5594EBA71BF8D7 /* NMEA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NMEA.swift; sourceTree = "<group>"; };
 		C85E889D9B66A8A1749ABE3B /* Geo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geo.swift; sourceTree = "<group>"; };
 		CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		CD3634DEA43B97B03002D439 /* OfflineMaps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMaps.swift; sourceTree = "<group>"; };
+		CEBE34A3685B774E8F5E2FFF /* LeewayTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LeewayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0007F434BC83411D393D4D7 /* Sun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sun.swift; sourceTree = "<group>"; };
 		D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayActivity.swift; sourceTree = "<group>"; };
 		D59EDB83D29FA350F3DA12BC /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
@@ -133,6 +151,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		020A92573559C123E48A35D4 /* LeewayTests */ = {
+			isa = PBXGroup;
+			children = (
+				1CC140018DCD447BD0874C2C /* RoutingTests.swift */,
+				713127C69E2434FB93B1CC90 /* ServicesTests.swift */,
+			);
+			path = LeewayTests;
+			sourceTree = "<group>";
+		};
 		093B2E17165BB3E429C4AA3D /* LeewayWidgets */ = {
 			isa = PBXGroup;
 			children = (
@@ -151,6 +178,7 @@
 				2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */,
 				D93883863C8AA97C51F552BD /* MarineWeatherService.swift */,
 				C6E1CEF5FD5594EBA71BF8D7 /* NMEA.swift */,
+				CD3634DEA43B97B03002D439 /* OfflineMaps.swift */,
 				94967BD098A1B2EE451C00FF /* Seadata.swift */,
 				020A1994950863B5E101FC3C /* Underway.swift */,
 			);
@@ -161,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				18C224E8BAB29A9C87B37793 /* Leeway.app */,
+				CEBE34A3685B774E8F5E2FFF /* LeewayTests.xctest */,
 				DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */,
 			);
 			name = Products;
@@ -190,8 +219,10 @@
 				CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */,
 				32E9D2DD05AF42C421217387 /* PassageSimulator.swift */,
 				2FA318DCECB6195CF45242E2 /* Polar.swift */,
+				92DAF7C29A85C14CB73C7B4C /* PolarTable.swift */,
 				E8FA840B4C2062B0CFC9B730 /* Router.swift */,
 				D0007F434BC83411D393D4D7 /* Sun.swift */,
+				A8A2D902B0A7DCFBA5423ABD /* WeatherRouter.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -221,6 +252,7 @@
 			isa = PBXGroup;
 			children = (
 				816DD60691BB8D2EF2DD5A36 /* Leeway */,
+				020A92573559C123E48A35D4 /* LeewayTests */,
 				093B2E17165BB3E429C4AA3D /* LeewayWidgets */,
 				FFD33C903F81A808F4F9DEB2 /* Shared */,
 				812A2AC622A6C8203FB23A3B /* Products */,
@@ -288,6 +320,24 @@
 			productReference = DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		A8371E836DCF3E445C46A05F /* LeewayTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 75F3A43DB4551C773FB68770 /* Build configuration list for PBXNativeTarget "LeewayTests" */;
+			buildPhases = (
+				EDC1B2BDCFC8E09F1568F457 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5CA12C159A39342C2C06A5DA /* PBXTargetDependency */,
+			);
+			name = LeewayTests;
+			packageProductDependencies = (
+			);
+			productName = LeewayTests;
+			productReference = CEBE34A3685B774E8F5E2FFF /* LeewayTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -302,6 +352,10 @@
 						ProvisioningStyle = Automatic;
 					};
 					5DC3BFCDC67730E00EB13C74 = {
+						DevelopmentTeam = C5MSK2XBMK;
+						ProvisioningStyle = Automatic;
+					};
+					A8371E836DCF3E445C46A05F = {
 						DevelopmentTeam = C5MSK2XBMK;
 						ProvisioningStyle = Automatic;
 					};
@@ -325,6 +379,7 @@
 			projectRoot = "";
 			targets = (
 				0532F9C097B3BD703E4F66F9 /* Leeway */,
+				A8371E836DCF3E445C46A05F /* LeewayTests */,
 				5DC3BFCDC67730E00EB13C74 /* LeewayWidgets */,
 			);
 		};
@@ -379,9 +434,11 @@
 				E03B79018EB52644D650DB4F /* MarineWeatherService.swift in Sources */,
 				684FED2DC7B3F69274DEEF4B /* Models.swift in Sources */,
 				139DB14FCB5059159F49471D /* NMEA.swift in Sources */,
+				390959FEEA812EB0A4615648 /* OfflineMaps.swift in Sources */,
 				13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */,
 				D05931A40FD026D94AEA060A /* PlannerSheet.swift in Sources */,
 				B24CA7880074F5C5702A69BD /* Polar.swift in Sources */,
+				9AFBE0C19BE461BCB93CACFC /* PolarTable.swift in Sources */,
 				1544E1FDBA37677E1133E615 /* Router.swift in Sources */,
 				43F264534EBE3D877D15982E /* Seadata.swift in Sources */,
 				DB3DB9572503C1C0AD5021C3 /* SeamarkSymbols.swift in Sources */,
@@ -391,13 +448,28 @@
 				C15DCB97DAF6F4D2A42AFCAD /* Underway.swift in Sources */,
 				6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */,
 				6043ED12D6F724A2EFB8C6E6 /* UnderwayViews.swift in Sources */,
+				3A84240C7FBCC9F1BD5B2CD7 /* WeatherRouter.swift in Sources */,
 				6197E972295C732811199DB1 /* WeatherSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EDC1B2BDCFC8E09F1568F457 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AE2ACD11A13BC77510753932 /* RoutingTests.swift in Sources */,
+				07471BE3B75004F56FD2CF24 /* ServicesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		5CA12C159A39342C2C06A5DA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0532F9C097B3BD703E4F66F9 /* Leeway */;
+			targetProxy = 3D193D783D63961689E44E34 /* PBXContainerItemProxy */;
+		};
 		AB383A44089C12FA6F213E2A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5DC3BFCDC67730E00EB13C74 /* LeewayWidgets */;
@@ -570,6 +642,25 @@
 			};
 			name = Release;
 		};
+		AF5A997E442FBBC59E97130B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikolausmarek.leeway.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Leeway.app/Leeway";
+			};
+			name = Release;
+		};
 		B182AF641AAD1D9DBE023F26 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -608,6 +699,26 @@
 			};
 			name = Release;
 		};
+		FDC046C9DBD03FC86C1E0645 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikolausmarek.leeway.tests;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Leeway.app/Leeway";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -616,6 +727,15 @@
 			buildConfigurations = (
 				B182AF641AAD1D9DBE023F26 /* Debug */,
 				A765AF4B11685B1EB214C7A9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		75F3A43DB4551C773FB68770 /* Build configuration list for PBXNativeTarget "LeewayTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FDC046C9DBD03FC86C1E0645 /* Debug */,
+				AF5A997E442FBBC59E97130B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

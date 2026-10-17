@@ -62,6 +62,7 @@ private struct Card<Content: View, Actions: View>: View {
         }
         .padding(14)
         .frame(maxWidth: 520, alignment: .leading)
+        .catchesTouches(cornerRadius: 24)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 }

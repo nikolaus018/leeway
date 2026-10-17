@@ -39,7 +39,8 @@ final class Underway {
 
     /// Within this distance of a waypoint, move on to the next leg.
     static let arrivalRadius = 0.04      // NM ≈ 75 m
-    static let offCourseLimit = 0.1      // NM ≈ 185 m
+    /// Off-track warning distance, NM (from the alarm settings).
+    var offCourseLimit = 0.1
 
     // MARK: MOB
 
@@ -238,7 +239,7 @@ final class Underway {
         // ETA from speed made good, falling back to speed over ground when VMG is meaningless.
         let speed: Double? = if let vmg, vmg > 0.5 { vmg } else if let sog, sog > 0.5 { sog } else { nil }
         let wasOff = readout?.offCourse ?? false
-        let offCourse = abs(xte) > Self.offCourseLimit
+        let offCourse = abs(xte) > offCourseLimit
         if offCourse && !wasOff { alarm.nudge() }
         readout = Readout(
             nextName: leg + 1 == points.count - 1 ? "Finish" : "WP \(leg + 1)",
@@ -328,7 +329,7 @@ final class Underway {
 
 /// Loud, repeated alarms that work with the phone on silent, plus a notification when the app is in the background.
 final class AlarmPlayer {
-    enum Kind { case mob, anchor, arrival }
+    enum Kind { case mob, anchor, arrival, collision, shallow }
 
     private var timer: Timer?
 
@@ -336,15 +337,15 @@ final class AlarmPlayer {
         stop()
         try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
-        let repeating = kind != .arrival
+        let repeating = kind != .arrival && kind != .shallow
         let play = {
             AudioServicesPlayAlertSound(SystemSoundID(kind == .arrival ? 1025 : 1005))
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
         play()
         if repeating {
-            // The anchor alarm rings until silenced; MOB rings a few times, then lets the crew work.
-            var remaining = kind == .mob ? 4 : Int.max
+            // The anchor alarm rings until silenced; MOB and collision ring a few times, then let the crew work.
+            var remaining = kind == .anchor ? Int.max : kind == .collision ? 2 : 4
             timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
                 remaining -= 1
                 if remaining < 0 { self?.stop() } else { play() }
@@ -352,7 +353,13 @@ final class AlarmPlayer {
         }
         if let message, UIApplication.shared.applicationState != .active {
             let content = UNMutableNotificationContent()
-            content.title = kind == .anchor ? "Anchor alarm" : kind == .mob ? "Man overboard" : "Leeway"
+            content.title = switch kind {
+            case .anchor: "Anchor alarm"
+            case .mob: "Man overboard"
+            case .collision: "Collision risk"
+            case .shallow: "Shallow water"
+            case .arrival: "Leeway"
+            }
             content.body = message
             content.sound = .defaultCritical
             content.interruptionLevel = .timeSensitive

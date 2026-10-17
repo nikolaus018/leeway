@@ -191,7 +191,7 @@ enum PassageSimulator {
         if motoring {
             throughWater = boat.motorSpeed
         } else {
-            let sailing = Polar.speedAlongCourse(twa: twa, tws: c.windSpeed, best: boat.sailSpeed)
+            let sailing = Polar.speedAlongCourse(twa: twa, tws: c.windSpeed, boat: boat)
             if sailing.speed < boat.motorThreshold {
                 throughWater = boat.motorSpeed
                 motoring = true

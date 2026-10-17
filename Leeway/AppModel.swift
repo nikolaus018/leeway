@@ -84,7 +84,43 @@ final class AppModel {
     var shownTrack: TrackLog?
     var showWind: Bool { didSet { save(showWind, as: "wind"); refreshWind() } }
     var showAIS: Bool { didSet { save(showAIS, as: "ais"); restartAIS() } }
-    var alarms: AlarmSettings { didSet { save(alarms, as: "alarms") } }
+    var alarms: AlarmSettings {
+        didSet {
+            save(alarms, as: "alarms")
+            underway.offCourseLimit = alarms.crossTrack
+        }
+    }
+
+    // MARK: Alarms
+
+    /// When each ship last raised the collision alarm.
+    private var collisionAlarmed: [Int: Date] = [:]
+    private var lastShallowAlarm = Date.distantPast
+
+    /// Sounds the alarm for a ship newly on a close course (again after ten minutes).
+    private func checkCollisions() {
+        guard alarms.aisAlarm, location.location != nil, showAIS || !nmea.vessels.isEmpty else { return }
+        for vessel in vessels where isDangerous(vessel) {
+            if let last = collisionAlarmed[vessel.mmsi], Date.now.timeIntervalSince(last) < 600 { continue }
+            collisionAlarmed[vessel.mmsi] = .now
+            let approach = approach(to: vessel)
+            let text = approach.map { String(format: "%.2f NM in %d min", $0.distance, Int(($0.time * 60).rounded())) } ?? ""
+            underway.alarm.sound(.collision, message: "\(vessel.displayName) will pass \(text).")
+            if inspection == nil { inspection = Inspection(coordinate: vessel.coordinate, vessel: vessel) }
+        }
+    }
+
+    /// Shallow water under way: the sounder (over NMEA) or else the chart, against the draft.
+    private func checkDepth(_ fix: CLLocation) {
+        guard alarms.shallowAlarm, (location.sog ?? 0) > 1.5, Date.now.timeIntervalSince(lastShallowAlarm) > 120 else { return }
+        let depth: Double? = nmea.depth ?? {
+            if case .depth(let d)? = region(containing: [fix.coordinate])?.sounding(at: fix.coordinate) { return d }
+            return nil
+        }()
+        guard let depth, depth < boat.draft + 0.5 else { return }
+        lastShallowAlarm = .now
+        underway.alarm.sound(.shallow, message: String(format: "Shallow water: %.1f m.", depth))
+    }
     /// The data server everything external comes through.
     var serverURL: String {
         didSet {
@@ -95,9 +131,17 @@ final class AppModel {
 
     // MARK: Session
 
-    var route = Route()
+    /// The open route; kept across launches.
+    var route = Route() { didSet { save(route, as: "currentRoute") } }
     var isEditing = false
-    var departure = Date.now { didSet { recompute(options: false) } }
+    var departure = Date.now {
+        didSet {
+            // The fastest route depends on when you leave.
+            if route.mode == .weather { routeChanged() } else { recompute(options: false) }
+        }
+    }
+    /// Fastest route: time saved against the shortest one, and how many tacks or gybes it takes.
+    private(set) var weatherRouting: (saved: TimeInterval, tacks: Int)?
     /// The track actually planned: the automatic route, or straight legs in manual mode.
     private(set) var path: [CLLocationCoordinate2D] = []
     /// Manual mode: a warning per leg if it crosses land or shallows.
@@ -136,6 +180,8 @@ final class AppModel {
     var tracking = UserTracking.none
     /// Instruments and AIS from the boat's own network (NMEA 0183 over Wi-Fi).
     let nmea = NMEAClient()
+    /// Base map and depth saved for chart areas, for use without signal.
+    let offline = OfflineMaps()
 
     /// North up, follow the boat north up, heading up (compass), course up (GPS track).
     enum UserTracking { case none, follow, heading, course }
@@ -157,23 +203,35 @@ final class AppModel {
         paletteMode = Self.load("palette") ?? .auto
         marks = Self.load("marks") ?? []
         logbook = Self.loadLogbook()
+        route = Self.load("currentRoute") ?? Route()
         showWind = Self.load("wind") ?? false
         showAIS = Self.load("ais") ?? false
         showRadar = Self.load("radar") ?? false
         alarms = Self.load("alarms") ?? AlarmSettings()
         serverURL = UserDefaults.standard.string(forKey: Seadata.defaultsKey) ?? Seadata.defaultURL
         reloadCharts()
-        location.onUpdate = { [weak self] fix in self?.underway.update(with: fix) }
+        location.onUpdate = { [weak self] fix in
+            self?.underway.update(with: fix)
+            self?.checkDepth(fix)
+        }
         location.onTrackFinished = { [weak self] track in self?.logbook.insert(track, at: 0) }
         charts.onChange = { [weak self] in self?.reloadCharts() }
         underway.boatName = boat.name
         syncUnderway()
         updatePalette()
+        underway.offCourseLimit = alarms.crossTrack
         // The automatic palette follows the sun.
         Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 self?.updatePalette()
+            }
+        }
+        // Collision watch: ships that will pass close, every few seconds.
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                self?.checkCollisions()
             }
         }
         // Picking up where we left off (navigating, at anchor, MOB): show the boat.
@@ -462,7 +520,7 @@ final class AppModel {
         let points = route.coordinates
         let region = region(containing: points)
 
-        guard route.mode == .automatic, points.count >= 2 else {
+        guard route.mode != .manual, points.count >= 2 else {
             useStraightLegs(points, in: region)
             routingState = points.count >= 2 ? .manual : .idle
             planChanged()
@@ -484,8 +542,9 @@ final class AppModel {
         routingState = .routing
         if path.count < 2 { useStraightLegs(points, in: region) }
         let safetyDepth = boat.safetyDepth, airDraft = boat.airDraft
+        let mode = route.mode, boat = boat, departure = departure
         routeTask = Task {
-            try? await Task.sleep(for: .milliseconds(120)) // coalesce drags
+            try? await Task.sleep(for: .milliseconds(mode == .weather ? 400 : 120)) // coalesce drags
             guard !Task.isCancelled else { return }
             let grid = await routingGrid(for: region, safetyDepth: safetyDepth, airDraft: airDraft, around: points)
             let result = await Task.detached(priority: .userInitiated) {
@@ -494,9 +553,17 @@ final class AppModel {
             guard !Task.isCancelled else { return }
             switch result {
             case .success(let routed):
-                path = routed.path
+                var final = routed.path
+                weatherRouting = nil
+                if mode == .weather, let fastest = await fastestRoute(points: points, shortest: routed.path, grid: grid,
+                                                                       boat: boat, departure: departure) {
+                    guard !Task.isCancelled else { return }
+                    final = fastest.path
+                    weatherRouting = (fastest.saved, fastest.tacks)
+                }
+                path = final
                 legHazards = []
-                routeNotes = Router.notes(for: routed.path, rules: grid.rules)
+                routeNotes = Router.notes(for: final, rules: grid.rules)
                 routingState = .routed(shallowEnds: routed.shallowConnections)
             case .failure(let error):
                 useStraightLegs(points, in: region)
@@ -504,6 +571,54 @@ final class AppModel {
             }
             planChanged()
         }
+    }
+
+    /// The fastest route under sail: isochrones between the safe-water ends of each leg of the
+    /// shortest route (which still brings the boat out of and into harbour), in the forecast wind.
+    private func fastestRoute(points: [CLLocationCoordinate2D], shortest: [CLLocationCoordinate2D], grid: RoutingGrid,
+                              boat: BoatProfile, departure: Date) async -> (path: [CLLocationCoordinate2D], saved: TimeInterval, tacks: Int)? {
+        guard boat.propulsion == .sail else { return nil }
+        let lats = shortest.map(\.latitude), lons = shortest.map(\.longitude)
+        guard let s = lats.min(), let n = lats.max(), let w = lons.min(), let e = lons.max() else { return nil }
+        let box = GeoBox(west: w, south: s, east: e, north: n).expanded(by: 0.3)
+        let pad = 0.1
+        let corridor = GeoBox(west: box.west - pad, south: box.south - pad, east: box.east + pad, north: box.north + pad)
+        guard let windGrid = try? await Seadata.current.windGrid(corridor), let field = WindField(windGrid) else { return nil }
+        return await Task.detached(priority: .userInitiated) { () -> (path: [CLLocationCoordinate2D], saved: TimeInterval, tacks: Int)? in
+            // Where the shortest route first and last reaches navigable water: harbour exits stay as planned.
+            let navigable = shortest.indices.filter { i in grid.index(of: shortest[i]).map(grid.isNavigable) ?? false }
+            guard let first = navigable.first, let last = navigable.last, last > first else { return nil }
+            guard let result = try? WeatherRouter.route(from: shortest[first], to: shortest[last], departure: departure,
+                                                       boat: boat, wind: field, grid: grid) else { return nil }
+            let combined = Array(shortest[...first]) + result.path.dropFirst().dropLast() + Array(shortest[last...])
+            // Compare like with like: the same wind, the shortest route sailed through it.
+            let shortestTime = Self.sailingTime(Array(shortest[first...last]), departure: departure, boat: boat, wind: field)
+            let fastestTime = result.arrival.timeIntervalSince(departure)
+            // Not worth it: keep the shortest route.
+            guard shortestTime - fastestTime > 60 else { return nil }
+            return (combined, shortestTime - fastestTime, result.tacks)
+        }.value
+    }
+
+    /// Time to sail a path in a wind field (tacking where needed), for comparing routes.
+    nonisolated private static func sailingTime(_ path: [CLLocationCoordinate2D], departure: Date, boat: BoatProfile, wind: WindField) -> TimeInterval {
+        var clock = departure
+        for (a, b) in zip(path, path.dropFirst()) {
+            let length = Geo.distanceNM(a, b)
+            var covered = 0.0
+            while covered < length - 1e-9 {
+                let step = min(0.5, length - covered)
+                let here = Geo.interpolate(a, b, fraction: (covered + step / 2) / max(length, 1e-9))
+                var speed = boat.motorSpeed
+                if let w = wind.wind(at: here, time: clock) {
+                    let sailing = Polar.speedAlongCourse(twa: abs(Geo.angleDiff(w.from, Geo.bearing(here, b))), tws: w.speed, boat: boat).speed
+                    if sailing >= boat.motorThreshold { speed = sailing }
+                }
+                clock += step / max(speed, 0.3) * 3600
+                covered += step
+            }
+        }
+        return clock.timeIntervalSince(departure)
     }
 
     private func useStraightLegs(_ points: [CLLocationCoordinate2D], in region: ChartRegion?) {

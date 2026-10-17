@@ -47,6 +47,7 @@ struct MOBPanel: View {
         .foregroundStyle(.white)
         .padding(14)
         .frame(maxWidth: 400, alignment: .leading)
+        .catchesTouches(cornerRadius: 24)
         .background(.red, in: .rect(cornerRadius: 24))
     }
 }
@@ -90,7 +91,8 @@ struct AnchorAlarmBanner: View {
         }
         .foregroundStyle(.white)
         .padding(14)
-        .frame(maxWidth: 420)
+        .frame(maxWidth: 400)
+        .catchesTouches(cornerRadius: 24)
         .background(.red, in: .rect(cornerRadius: 24))
     }
 }

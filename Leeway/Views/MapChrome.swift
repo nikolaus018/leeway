@@ -2,6 +2,14 @@ import SwiftUI
 
 // MARK: - Top
 
+extension View {
+    /// Panels over the chart catch every touch inside their outline; SwiftUI would otherwise pass
+    /// taps on text and backgrounds through to the map underneath.
+    func catchesTouches(cornerRadius: CGFloat) -> some View {
+        contentShape(.rect(cornerRadius: cornerRadius)).onTapGesture {}
+    }
+}
+
 /// Instruments (or navigation, MOB, editing) on the left, map controls on the right. Everything
 /// has a fixed or capped width, so nothing shifts as numbers change or the map zooms.
 struct TopChrome: View {
@@ -156,12 +164,14 @@ struct NavigationBar: View {
                         .font(.subheadline.weight(.semibold))
                 }
                 Spacer(minLength: 0)
-                Button("More", systemImage: expanded ? "chevron.up" : "chevron.down") {
-                    withAnimation(.smooth(duration: 0.2)) { expanded.toggle() }
-                }
-                .labelStyle(.iconOnly)
-                .font(.footnote.weight(.bold))
+                Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.tint)
             }
+            .contentShape(.rect)
+            .onTapGesture { withAnimation(.smooth(duration: 0.2)) { expanded.toggle() } }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Shows more navigation details")
             if expanded {
                 if let r = underway.readout {
                     Text("SOG \(r.sog.map { String(format: "%.1f", $0) } ?? "–") · VMG \(r.vmg.map { String(format: "%.1f", $0) } ?? "–") kn · finish \(String(format: "%.1f", r.remaining)) NM\(r.etaFinish.map { " at " + $0.formatted(date: .omitted, time: .shortened) } ?? "")")
@@ -187,7 +197,8 @@ struct NavigationBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .catchesTouches(cornerRadius: 18)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 18))
     }
 
     private func distance(_ nm: Double) -> String {
@@ -216,6 +227,7 @@ struct EditingBanner: View {
         .padding(.leading, 14)
         .padding(.trailing, 6)
         .padding(.vertical, 6)
+        .catchesTouches(cornerRadius: 22)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 }
@@ -241,6 +253,7 @@ struct MeasureBanner: View {
         .padding(.leading, 14)
         .padding(.trailing, 6)
         .padding(.vertical, 6)
+        .catchesTouches(cornerRadius: 22)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
@@ -329,6 +342,7 @@ struct MapRail: View {
             .labelStyle(.iconOnly)
             .font(.system(size: 17, weight: .medium))
             .foregroundStyle(.tint)
+            .catchesTouches(cornerRadius: 22)
             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
 
             MOBButton()
@@ -406,6 +420,7 @@ struct TabBar: View {
         }
         .padding(.horizontal, 6)
         .frame(maxWidth: 520)
+        .catchesTouches(cornerRadius: 30)
         .glassEffect(.regular.interactive(), in: .capsule)
     }
 }
@@ -450,6 +465,7 @@ struct RouteCard: View {
         .padding(.trailing, 8)
         .padding(.vertical, 8)
         .frame(maxWidth: 520)
+        .catchesTouches(cornerRadius: 22)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
@@ -531,6 +547,7 @@ struct TimeBar: View {
         .font(.footnote.weight(.semibold))
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
+        .catchesTouches(cornerRadius: 12)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
     }
 

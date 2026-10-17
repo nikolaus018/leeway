@@ -151,7 +151,7 @@ private struct RouteList: View {
                     }
                 }
 
-                Section(model.route.mode == .automatic ? "Courses to steer" : "Legs") {
+                Section(model.route.mode != .manual ? "Courses to steer" : "Legs") {
                     ForEach(plan.legs) { leg in
                         LegRow(leg: leg, isLast: leg.index == plan.legs.count - 1, sailing: model.boat.propulsion == .sail,
                                hazard: model.legHazards.indices.contains(leg.index) ? model.legHazards[leg.index] : nil)
@@ -248,7 +248,7 @@ private struct RoutingStatus: View {
             EmptyView()
         case .routing:
             Label {
-                Text("Finding a safe route…")
+                Text(model.route.mode == .weather ? "Finding the fastest safe route…" : "Finding a safe route…")
             } icon: {
                 ProgressView()
             }
@@ -256,6 +256,20 @@ private struct RoutingStatus: View {
             .foregroundStyle(.secondary)
         case .routed(let shallowEnds):
             VStack(alignment: .leading, spacing: 6) {
+                if model.route.mode == .weather {
+                    if let fastest = model.weatherRouting {
+                        Label("Fastest in the forecast wind: \(fastest.saved.hoursMinutes) quicker than the shortest route" +
+                              (fastest.tacks > 0 ? ", \(fastest.tacks) \(fastest.tacks == 1 ? "tack or gybe" : "tacks or gybes")" : ""),
+                              systemImage: "wind")
+                            .foregroundStyle(.tint)
+                    } else if model.boat.propulsion == .motor {
+                        Label("Fastest routing is for sailing boats; showing the shortest route.", systemImage: "info.circle")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("In this wind the shortest route is also the fastest.", systemImage: "wind")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Label("Avoids land, charted rocks and wrecks, and water under \(safety)", systemImage: "checkmark.shield")
                     .foregroundStyle(.green)
                 if !shallowEnds.isEmpty {

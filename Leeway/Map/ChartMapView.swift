@@ -16,6 +16,7 @@ struct ChartMapView: UIViewRepresentable {
     var underway: UnderwayMapState
     var marks: [UserMark]
     var warnings: [WeatherWarning]
+    var radar: RadarFrame?
     var measure: [CLLocationCoordinate2D]
     var inspected: CLLocationCoordinate2D?
     var showGrid: Bool
@@ -142,6 +143,7 @@ struct ChartMapView: UIViewRepresentable {
             }
             styleReady = true
             drawn = [:]
+            shownRadar = nil
             syncAll(on: mapView)
         }
 
@@ -183,6 +185,31 @@ struct ChartMapView: UIViewRepresentable {
                 p.inspected.map { [point($0, [:])] } ?? []
             }
             if !p.showGrid { set(.grid, key: "off", on: style) { [] } } else if let region = lastRegion { updateGrid(map, region) }
+            syncRadar(p.radar, on: style)
+        }
+
+        // MARK: Radar
+
+        private var shownRadar: RadarFrame?
+
+        /// Rain radar is a raster source per frame: swapped when the frame changes.
+        private func syncRadar(_ frame: RadarFrame?, on style: MLNStyle) {
+            guard frame != shownRadar else { return }
+            shownRadar = frame
+            if let layer = style.layer(withIdentifier: "radar") { style.removeLayer(layer) }
+            if let source = style.source(withIdentifier: "radar") { style.removeSource(source) }
+            guard let frame else { return }
+            let source = MLNRasterTileSource(identifier: "radar", tileURLTemplates: [frame.tiles],
+                                             options: [.tileSize: 256, .maximumZoomLevel: 7, .attributionInfos: []])
+            style.addSource(source)
+            let layer = MLNRasterStyleLayer(identifier: "radar", source: source)
+            layer.rasterOpacity = NSExpression(forConstantValue: 0.6)
+            layer.rasterFadeDuration = NSExpression(forConstantValue: 0)
+            if let below = style.layer(withIdentifier: "live-warnings-fill") {
+                style.insertLayer(layer, below: below)
+            } else {
+                style.addLayer(layer)
+            }
         }
 
         private func set(_ live: ChartStyle.Live, key: AnyHashable, on style: MLNStyle, features: () -> [MLNShape]) {
@@ -349,8 +376,11 @@ struct ChartMapView: UIViewRepresentable {
 
         // MARK: Gestures
 
+        /// A long press ends with the finger lifting, which the tap recogniser also sees.
+        private var lastPress = Date.distantPast
+
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
-            guard let map = gesture.view as? MLNMapView else { return }
+            guard let map = gesture.view as? MLNMapView, Date.now.timeIntervalSince(lastPress) > 1 else { return }
             let point = gesture.location(in: map)
             let coordinate = map.convert(point, toCoordinateFrom: map)
             if parent.isEditing {
@@ -366,11 +396,14 @@ struct ChartMapView: UIViewRepresentable {
 
         @objc func pressed(_ gesture: UILongPressGestureRecognizer) {
             guard gesture.state == .began, !parent.isEditing, let map = gesture.view as? MLNMapView else { return }
+            lastPress = .now
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             parent.onAddWaypoint(map.convert(gesture.location(in: map), toCoordinateFrom: map))
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            // Only touches on the map itself: not the controls and cards drawn over it.
+            guard let map = g.view, let touched = touch.view, touched.isDescendant(of: map) else { return false }
             // Let pins handle their own taps and drags.
             var view = touch.view
             while let v = view {
@@ -414,7 +447,7 @@ struct ChartMapView: UIViewRepresentable {
                 hit.seamark = Seamark(feature: feature)
             }
             let here = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
-            for feature in map.visibleFeatures(in: here, styleLayerIdentifiers: layers(["-area-fill", "-area-line"])) {
+            for feature in map.visibleFeatures(in: here, styleLayerIdentifiers: layers(["-area-fill", "-area-line", "-area-separation", "-area-cable"])) {
                 if let kind = feature.attribute(forKey: "kind") as? String {
                     hit.zones.append(ChartHit.Zone(kind: kind, name: feature.attribute(forKey: "n") as? String,
                                                    detail: feature.attribute(forKey: "res") as? String ?? feature.attribute(forKey: "c") as? String))

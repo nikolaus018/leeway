@@ -19,10 +19,18 @@ struct Waypoint: Identifiable, Codable, Hashable {
 enum RoutingMode: String, Codable, CaseIterable, Identifiable {
     /// Shortest path through water deep enough for the boat.
     case automatic
+    /// Fastest path under sail in the forecast wind (isochrones), just as safe.
+    case weather
     /// Straight legs between the user's waypoints.
     case manual
     var id: Self { self }
-    var label: String { self == .automatic ? "Automatic" : "Manual" }
+    var label: String {
+        switch self {
+        case .automatic: "Shortest"
+        case .weather: "Fastest"
+        case .manual: "Manual"
+        }
+    }
 }
 
 struct Route: Identifiable, Codable, Hashable {
@@ -71,6 +79,8 @@ struct BoatProfile: Codable, Equatable {
     var maxWind = 22.0
     var maxGust = 30.0
     var maxWave = 1.5
+    /// The boat's own polar (a preset or imported); nil uses a generic one scaled by `sailSpeed`.
+    var polar: PolarTable?
 
     var safetyDepth: Double { draft + underKeelClearance }
 
@@ -91,6 +101,7 @@ struct BoatProfile: Codable, Equatable {
         maxWind = try c.decodeIfPresent(Double.self, forKey: .maxWind) ?? d.maxWind
         maxGust = try c.decodeIfPresent(Double.self, forKey: .maxGust) ?? d.maxGust
         maxWave = try c.decodeIfPresent(Double.self, forKey: .maxWave) ?? d.maxWave
+        polar = try c.decodeIfPresent(PolarTable.self, forKey: .polar)
     }
 }
 

@@ -83,6 +83,8 @@ class Venvy:
         if method not in ("GET", "HEAD"):
             headers["X-CSRF-Token"] = self._cookie("csrf_token")
         request = urllib.request.Request(f"{VENVY_URL}/api{path}", data=data, method=method, headers=headers)
+        if os.environ.get("VENVY_DEBUG"):
+            print(f"  {method} {path}", flush=True)
         for attempt in range(5):
             try:
                 with self.opener.open(request, timeout=120) as response:
@@ -91,7 +93,9 @@ class Venvy:
             except urllib.error.HTTPError as error:
                 detail = error.read().decode(errors="replace")[:500]
                 if error.code == 429 and attempt < 4:
-                    time.sleep(int(error.headers.get("Retry-After", "10")))
+                    wait = int(error.headers.get("Retry-After", "10"))
+                    print(f"  rate-limited, waiting {wait} s", flush=True)
+                    time.sleep(wait)
                     continue
                 raise VenvyError(error.code, f"{method} {path}: {detail}") from None
             except urllib.error.URLError as error:
@@ -150,12 +154,19 @@ class Venvy:
     def app(self):
         return next((a for a in self.call("GET", "/apps") if a["name"] == APP_NAME), None)
 
-    def remote_files(self, app_id, path=""):
-        """Every file under `path` on the server: {relative path: size}."""
+    def remote_files(self, app_id, path="", recursive=True):
+        """Files under `path` on the server: {relative path: size}. A missing folder is empty."""
         found = {}
-        for entry in self.call("GET", f"/apps/{app_id}/files/tree?path={urllib.parse.quote(path)}") or []:
+        try:
+            entries = self.call("GET", f"/apps/{app_id}/files/tree?path={urllib.parse.quote(path)}") or []
+        except VenvyError as error:
+            if error.code == 404:
+                return found
+            raise
+        for entry in entries:
             if entry["is_dir"]:
-                found.update(self.remote_files(app_id, entry["path"]))
+                if recursive:
+                    found.update(self.remote_files(app_id, entry["path"]))
             else:
                 found[entry["path"]] = entry.get("size")
         return found
@@ -206,8 +217,8 @@ def ship():
     remote = {}
     for folder in MANAGED:
         remote.update(venvy.remote_files(app_id, folder))
-    for name in ("Cargo.toml", "Cargo.lock", "rustfmt.toml"):
-        remote.update({p: s for p, s in venvy.remote_files(app_id).items() if p == name})
+    # The app's root, one level only: it also holds the server's cache, which isn't ours to list.
+    remote.update(venvy.remote_files(app_id, recursive=False))
 
     changed = [p for p, f in local.items() if remote.get(p) != f.stat().st_size or f.stat().st_size < 1_000_000]
     gone = [p for p in remote if p.split("/")[0] in MANAGED and p not in local]

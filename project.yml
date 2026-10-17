@@ -65,6 +65,22 @@ targets:
           NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+  LeewayTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LeewayTests
+    dependencies:
+      - target: Leeway
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway.tests
+        DEVELOPMENT_TEAM: C5MSK2XBMK
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
   LeewayWidgets:
     type: app-extension
     platform: iOS
@@ -84,3 +100,16 @@ targets:
         CFBundleDisplayName: Leeway
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+schemes:
+  Leeway:
+    build:
+      targets:
+        Leeway: all
+        LeewayTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - LeewayTests

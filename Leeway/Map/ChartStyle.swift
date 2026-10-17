@@ -191,8 +191,7 @@ struct ChartStyle: Equatable {
                              layout: ["text-field": ["coalesce", ["get", "name:latin"], ["get", "name"]],
                                       "text-font": ["Noto Sans Italic"],
                                       "text-size": ["interpolate", ["linear"], ["zoom"], 3, 11, 10, 14],
-                                      "text-letter-spacing": 0.1, "text-max-width": 8,
-                                      "symbol-placement": ["step", ["zoom"], "point", 9, "line-center"]],
+                                      "text-letter-spacing": 0.1, "text-max-width": 8],
                              paint: ["text-color": c.waterInk, "text-halo-color": c.halo, "text-halo-width": 1.2]))
         layers.append(symbol("place-island", source: "base", sourceLayer: "place", minzoom: 9,
                              filter: ["in", ["get", "class"], ["literal", ["island", "islet"]]],
@@ -238,15 +237,26 @@ struct ChartStyle: Equatable {
         var hasher = Hasher()
         hasher.combine(data)
         let url = directory.appending(path: "chart-\(String(UInt(bitPattern: hasher.finalize()), radix: 36)).json")
-        if !FileManager.default.fileExists(atPath: url.path) { try data.write(to: url, options: .atomic) }
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try data.write(to: url, options: .atomic)
+            // Keep the last few (palettes switch back and forth); offline packs keep their own copy.
+            let old = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+            let sorted = old.sorted {
+                let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return a > b
+            }
+            for stale in sorted.dropFirst(8) { try? FileManager.default.removeItem(at: stale) }
+        }
         return url
     }
 
     /// OpenSeaMap tiles through the data server, skipping the packs (they draw their own seamarks).
     private var seamarkTemplate: String {
-        var template = server.appending(path: "v1/tiles/seamark").absoluteString + "/{z}/{x}/{y}.png"
+        // `v` changes when the tiles' meaning changes (v2: empty tiles are transparent images).
+        var template = server.appending(path: "v1/tiles/seamark").absoluteString + "/{z}/{x}/{y}.png?v=2"
         if !packs.isEmpty {
-            template += "?skip=" + packs.map { String(format: "%.4f,%.4f,%.4f,%.4f", $0.west, $0.south, $0.east, $0.north) }
+            template += "&skip=" + packs.map { String(format: "%.4f,%.4f,%.4f,%.4f", $0.west, $0.south, $0.east, $0.north) }
                 .joined(separator: ";")
         }
         return template
@@ -306,22 +316,30 @@ struct ChartStyle: Equatable {
         let source = "chart-\(pack.id)"
         let id = "pack-\(pack.id)"
         let lightColour: [Any] = ["match", ["get", "col"], "R", "#D81B2A", "G", "#0E9E4A", c.sectorWhite]
+        let areaLabel: [Any] = ["match", ["get", "kind"],
+                                "restricted", ["coalesce", ["get", "n"], "Restricted area"],
+                                "anchorage", ["coalesce", ["get", "n"], "Anchorage"],
+                                "cable", "Cable", "pipeline", "Pipeline", "marine_farm", "Fish farm",
+                                "seabed", ["coalesce", ["get", "c"], ""], ""]
         var layers: [[String: Any]] = [
+            // Dash patterns can't vary per feature: one layer per pattern.
             layer("\(id)-area-line", "line", source: source, sourceLayer: "area", minzoom: 10,
-                  filter: ["in", ["get", "kind"], ["literal", ["restricted", "anchorage", "mooring", "tss_lane", "tss_separation", "fairway", "cable", "pipeline", "marine_farm"]]],
-                  paint: ["line-color": c.magenta, "line-opacity": 0.8,
-                          "line-width": ["match", ["get", "kind"], "tss_separation", 2.0, 1.2],
-                          "line-dasharray": ["match", ["get", "kind"], "cable", ["literal", [1, 1.5]], "pipeline", ["literal", [4, 2]], "tss_separation", ["literal", [1, 0]], ["literal", [3, 2]]]]),
+                  filter: ["in", ["get", "kind"], ["literal", ["restricted", "anchorage", "mooring", "tss_lane", "fairway", "marine_farm"]]],
+                  paint: ["line-color": c.magenta, "line-opacity": 0.8, "line-width": 1.2, "line-dasharray": [3, 2]]),
+            layer("\(id)-area-separation", "line", source: source, sourceLayer: "area", minzoom: 9,
+                  filter: ["==", ["get", "kind"], "tss_separation"],
+                  paint: ["line-color": c.magenta, "line-opacity": 0.8, "line-width": 2]),
+            layer("\(id)-area-cable", "line", source: source, sourceLayer: "area", minzoom: 11,
+                  filter: ["in", ["get", "kind"], ["literal", ["cable", "pipeline"]]],
+                  paint: ["line-color": c.magenta, "line-opacity": 0.8, "line-width": 1.2, "line-dasharray": [1, 1.5]]),
             symbol("\(id)-area-label", source: source, sourceLayer: "area", minzoom: 12,
-                   filter: ["in", ["get", "kind"], ["literal", ["restricted", "anchorage", "cable", "pipeline", "seabed", "marine_farm"]]],
-                   layout: ["text-field": ["match", ["get", "kind"],
-                                           "restricted", ["coalesce", ["get", "n"], "Restricted area"],
-                                           "anchorage", ["coalesce", ["get", "n"], "Anchorage"],
-                                           "cable", "Cable", "pipeline", "Pipeline", "marine_farm", "Fish farm",
-                                           "seabed", ["coalesce", ["get", "c"], ""], ""],
-                            "text-font": ["Noto Sans Italic"], "text-size": 10.5,
-                            "symbol-placement": ["match", ["geometry-type"], "LineString", "line", "point"],
-                            "text-max-width": 8],
+                   filter: ["all", ["!=", ["geometry-type"], "LineString"],
+                            ["in", ["get", "kind"], ["literal", ["restricted", "anchorage", "seabed", "marine_farm"]]]],
+                   layout: ["text-field": areaLabel, "text-font": ["Noto Sans Italic"], "text-size": 10.5, "text-max-width": 8],
+                   paint: ["text-color": c.magenta, "text-halo-color": c.halo, "text-halo-width": 1]),
+            symbol("\(id)-area-line-label", source: source, sourceLayer: "area", minzoom: 13,
+                   filter: ["all", ["==", ["geometry-type"], "LineString"], ["in", ["get", "kind"], ["literal", ["cable", "pipeline"]]]],
+                   layout: ["text-field": areaLabel, "text-font": ["Noto Sans Italic"], "text-size": 10, "symbol-placement": "line"],
                    paint: ["text-color": c.magenta, "text-halo-color": c.halo, "text-halo-width": 1]),
             layer("\(id)-bridge", "line", source: source, sourceLayer: "bridge", minzoom: 11,
                   paint: ["line-color": c.ink, "line-width": 3]),
@@ -395,22 +413,28 @@ struct ChartStyle: Equatable {
                   layout: ["line-cap": "round", "line-join": "round"],
                   paint: ["line-color": palette == .night ? "#000000" : "#FFFFFF", "line-width": 7, "line-opacity": 0.7]),
             layer("live-route", "line", source: "live-route",
+                  filter: ["!", ["get", "hazard"]],
                   layout: ["line-cap": "round", "line-join": "round"],
-                  paint: ["line-color": ["case", ["get", "hazard"], "#E5322D", route],
-                          "line-width": 4,
-                          "line-dasharray": ["case", ["get", "hazard"], ["literal", [2, 1.5]], ["literal", [1, 0]]]]),
+                  paint: ["line-color": route, "line-width": 4]),
+            layer("live-route-hazard", "line", source: "live-route",
+                  filter: ["get", "hazard"],
+                  paint: ["line-color": "#E5322D", "line-width": 4, "line-dasharray": [2, 1.5]]),
             layer("live-underway-fill", "fill", source: "live-underway",
                   filter: ["==", ["geometry-type"], "Polygon"],
                   paint: ["fill-color": ["case", ["get", "alarm"], "#E5322D", "#8E44D9"], "fill-opacity": 0.1]),
             layer("live-underway", "line", source: "live-underway",
+                  filter: ["in", ["get", "style"], ["literal", ["activeLeg", "ahead", "cog", "swing"]]],
                   layout: ["line-cap": "round"],
                   paint: ["line-color": ["match", ["get", "style"],
-                                         "activeLeg", "#E0337A", "ahead", "rgba(224,51,122,0.6)", "bearing", "#E0337A",
-                                         "cog", palette == .night ? "#FFFFFF" : "#000000", "mob", "#E5322D",
-                                         "circle", ["case", ["get", "alarm"], "#E5322D", "#8E44D9"], "rgba(142,68,217,0.7)"],
-                          "line-width": ["match", ["get", "style"], "activeLeg", 6, "ahead", 3, "mob", 3, "cog", 2.5, "circle", 2, 1.5],
-                          "line-dasharray": ["match", ["get", "style"], "bearing", ["literal", [3, 2.5]], "mob", ["literal", [3, 2]],
-                                             "circle", ["literal", [3, 2]], ["literal", [1, 0]]]]),
+                                         "activeLeg", "#E0337A", "ahead", "rgba(224,51,122,0.6)",
+                                         "cog", palette == .night ? "#FFFFFF" : "#000000", "rgba(142,68,217,0.7)"],
+                          "line-width": ["match", ["get", "style"], "activeLeg", 6, "ahead", 3, "cog", 2.5, 1.5]]),
+            layer("live-underway-dashed", "line", source: "live-underway",
+                  filter: ["in", ["get", "style"], ["literal", ["bearing", "mob", "circle"]]],
+                  paint: ["line-color": ["match", ["get", "style"], "bearing", "#E0337A", "mob", "#E5322D",
+                                         ["case", ["get", "alarm"], "#E5322D", "#8E44D9"]],
+                          "line-width": ["match", ["get", "style"], "bearing", 2, "mob", 3, 2],
+                          "line-dasharray": [3, 2]]),
             symbol("live-underway-marks", source: "live-underway",
                    filter: ["==", ["geometry-type"], "Point"],
                    layout: ["icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true]),
