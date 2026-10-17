@@ -1,5 +1,35 @@
 import CoreLocation
 
+enum AppTab: String, CaseIterable, Identifiable, Hashable {
+    case chart
+    case routes
+    case weather
+    case log
+    case settings
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .chart: "Chart"
+        case .routes: "Routes"
+        case .weather: "Weather"
+        case .log: "Log"
+        case .settings: "Settings"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .chart: "map"
+        case .routes: "point.topleft.down.to.point.bottomright.curvepath"
+        case .weather: "cloud.sun"
+        case .log: "book.closed"
+        case .settings: "gearshape"
+        }
+    }
+}
+
 struct Waypoint: Identifiable, Codable, Hashable {
     var id = UUID()
     var latitude: Double

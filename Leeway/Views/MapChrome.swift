@@ -15,6 +15,7 @@ extension View {
 struct TopChrome: View {
     @Environment(AppModel.self) private var model
     @Binding var showingLayers: Bool
+    @Binding var showingSearch: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -46,7 +47,7 @@ struct TopChrome: View {
             }
             .frame(maxWidth: 400, alignment: .leading)
             Spacer(minLength: 0)
-            MapRail(showingLayers: $showingLayers)
+            MapRail(showingLayers: $showingLayers, showingSearch: $showingSearch)
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
@@ -305,14 +306,18 @@ struct WarningPill: View {
     }
 }
 
-/// Layers, position/orientation, compass and range-and-bearing, then the MOB button on its own.
+/// Search, layers, position/orientation, compass and range-and-bearing, then the MOB button on its own.
 struct MapRail: View {
     @Environment(AppModel.self) private var model
     @Binding var showingLayers: Bool
+    @Binding var showingSearch: Bool
 
     var body: some View {
         VStack(spacing: 10) {
             VStack(spacing: 0) {
+                Button("Search", systemImage: "magnifyingglass") { showingSearch = true }
+                    .frame(width: 44, height: 44)
+                Divider().frame(width: 28)
                 Button("Layers", systemImage: "square.2.layers.3d") { showingLayers = true }
                     .frame(width: 44, height: 44)
                 Divider().frame(width: 28)
@@ -370,10 +375,9 @@ struct MapRail: View {
 
 // MARK: - Bottom
 
-/// Scale bar, wind time, the route or inspector card, and the tab bar.
+/// Scale bar, wind time, and the route or inspector card.
 struct BottomChrome: View {
     @Environment(AppModel.self) private var model
-    @Binding var sheet: AppSheet?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -392,45 +396,13 @@ struct BottomChrome: View {
                         InspectorCard(inspection: inspection)
                     }
                 } else if !model.route.waypoints.isEmpty, !model.underway.isNavigating, !model.isMeasuring {
-                    RouteCard(openDetails: { sheet = .route })
+                    RouteCard(openDetails: { model.selectedTab = .routes })
                 }
             }
             .transition(.move(edge: .bottom).combined(with: .opacity))
-            TabBar(sheet: $sheet)
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 4)
-    }
-}
-
-/// One row of glass buttons that open the sheets.
-struct TabBar: View {
-    @Binding var sheet: AppSheet?
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(AppSheet.allCases) { item in
-                Button {
-                    sheet = item
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 18, weight: .medium))
-                            .frame(height: 22)
-                        Text(item.title)
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(sheet == item ? Color.accentColor : Color.primary)
-            }
-        }
-        .padding(.horizontal, 6)
-        .frame(maxWidth: 520)
-        .catchesTouches(cornerRadius: 30)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .padding(.bottom, 8)
     }
 }
 

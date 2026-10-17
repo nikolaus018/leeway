@@ -73,7 +73,7 @@ struct SettingsSheet: View {
                         .fontWeight(.semibold)
                 }
             }
-            .navigationTitle("More")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingBoat) { BoatSettingsView() }
             .sheet(isPresented: $showingData) { DataSettingsView() }

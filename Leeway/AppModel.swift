@@ -175,9 +175,10 @@ final class AppModel {
     private(set) var fitRouteRequest = 0
     /// Bumped to turn the map north up.
     private(set) var northRequest = 0
-    /// Bumped to show the route sheet (after "Route here", or opening a saved route from elsewhere).
+    /// Bumped to show the route sheet (after "Navigate", or opening a saved route from elsewhere).
     private(set) var routeOpenedRequest = 0
     var tracking = UserTracking.none
+    var selectedTab = AppTab.chart
     /// Instruments and AIS from the boat's own network (NMEA 0183 over Wi-Fi).
     let nmea = NMEAClient()
     /// Base map and depth saved for chart areas, for use without signal.
@@ -274,6 +275,7 @@ final class AppModel {
         route = Route()
         isEditing = true
         inspection = nil
+        selectedTab = .chart
         routeChanged()
     }
 
@@ -281,6 +283,7 @@ final class AppModel {
         if !isEditing && route.waypoints.isEmpty { route = Route() }
         isEditing = true
         inspection = nil
+        selectedTab = .chart
         route.waypoints.append(Waypoint(coordinate))
         routeChanged()
     }
@@ -298,6 +301,7 @@ final class AppModel {
         isEditing = false
         departure = .now
         fitPending = true
+        selectedTab = .chart
         routeChanged()
         routeOpenedRequest += 1
     }
@@ -369,6 +373,7 @@ final class AppModel {
         guard path.count >= 2 else { return }
         isEditing = false
         inspection = nil
+        selectedTab = .chart
         underway.startNavigation(along: path, from: location.location)
         location.startRecordingIfNeeded()
         tracking = .follow

@@ -28,7 +28,7 @@ struct ChartMapView: UIViewRepresentable {
     var focus: AppModel.Focus?
     var onAddWaypoint: (CLLocationCoordinate2D) -> Void
     var onMoveWaypoint: (Waypoint.ID, CLLocationCoordinate2D) -> Void
-    var onInspect: (ChartHit) -> Void
+    var onInspect: (ChartHit?) -> Void
     var onMeasure: (CLLocationCoordinate2D) -> Void
     var onRegionChange: (GeoBox) -> Void
     var onTrackingChange: (AppModel.UserTracking) -> Void
@@ -380,7 +380,7 @@ struct ChartMapView: UIViewRepresentable {
         private var lastPress = Date.distantPast
 
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
-            guard let map = gesture.view as? MLNMapView, Date.now.timeIntervalSince(lastPress) > 1 else { return }
+            guard let map = gesture.view as? MLNMapView, Date.now.timeIntervalSince(lastPress) > 0.5 else { return }
             let point = gesture.location(in: map)
             let coordinate = map.convert(point, toCoordinateFrom: map)
             if parent.isEditing {
@@ -391,14 +391,21 @@ struct ChartMapView: UIViewRepresentable {
                 parent.onMeasure(coordinate)
                 return
             }
-            parent.onInspect(hit(at: point, coordinate: coordinate, on: map))
+            let h = hit(at: point, coordinate: coordinate, on: map)
+            if h.mmsi != nil || h.markID != nil || h.seamark != nil {
+                parent.onInspect(h)
+            } else {
+                parent.onInspect(nil)
+            }
         }
 
         @objc func pressed(_ gesture: UILongPressGestureRecognizer) {
-            guard gesture.state == .began, !parent.isEditing, let map = gesture.view as? MLNMapView else { return }
             lastPress = .now
+            guard gesture.state == .began, !parent.isEditing, let map = gesture.view as? MLNMapView else { return }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            parent.onAddWaypoint(map.convert(gesture.location(in: map), toCoordinateFrom: map))
+            let point = gesture.location(in: map)
+            let coordinate = map.convert(point, toCoordinateFrom: map)
+            parent.onInspect(hit(at: point, coordinate: coordinate, on: map))
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {

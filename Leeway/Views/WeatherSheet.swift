@@ -18,6 +18,9 @@ struct WeatherSheet: View {
             .listSectionSpacing(.compact)
             .navigationTitle(model.location.location == nil ? "Weather · map centre" : "Weather here")
             .navigationBarTitleDisplayMode(.inline)
+            .refreshable {
+                model.refreshLocalWeather()
+            }
         }
     }
 }

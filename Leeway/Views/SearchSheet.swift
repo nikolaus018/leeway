@@ -50,7 +50,11 @@ struct SearchSheet: View {
             .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Harbour, bay, town…")
             .searchFocused($focused)
             .navigationTitle("Search")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { close() }
+                }
+            }
             .overlay(alignment: .top) {
                 if searching { ProgressView().padding(.top, 8) }
             }
@@ -75,6 +79,7 @@ struct SearchSheet: View {
         Button {
             model.centre(on: coordinate, zoom: 14)
             model.inspect(ChartHit(coordinate: coordinate))
+            model.selectedTab = .chart
             close()
         } label: {
             Label {

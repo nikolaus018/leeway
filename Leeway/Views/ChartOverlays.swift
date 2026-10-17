@@ -29,21 +29,94 @@ struct GridLabels: View {
     }
 }
 
+extension LightCharacteristic.LightColor {
+    var color: Color {
+        switch self {
+        case .white: Color(red: 1.0, green: 0.96, blue: 0.78)
+        case .red: Color(red: 1.0, green: 0.2, blue: 0.25)
+        case .green: Color(red: 0.15, green: 0.9, blue: 0.4)
+        case .yellow: Color(red: 1.0, green: 0.82, blue: 0.1)
+        case .blue: Color(red: 0.2, green: 0.55, blue: 1.0)
+        }
+    }
+}
+
+/// A glowing, pulsing icon matching a light's actual nautical rhythm, period, and colour.
+struct FlashingLightIcon: View {
+    var characteristic: LightCharacteristic
+    var isSmall: Bool = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { timeline in
+            let on = characteristic.isOn(at: timeline.date)
+            let color = characteristic.color.color
+
+            ZStack {
+                if on {
+                    Circle()
+                        .fill(color.opacity(isSmall ? 0.4 : 0.35))
+                        .frame(width: isSmall ? 18 : 34, height: isSmall ? 18 : 34)
+                        .blur(radius: isSmall ? 3 : 6)
+                }
+
+                Image(systemName: on ? (isSmall ? "light.max" : "light.beacon.max.fill") : (isSmall ? "light.min" : "light.beacon.max"))
+                    .font(isSmall ? .footnote.weight(.semibold) : .title3)
+                    .foregroundStyle(on ? color : Color.secondary.opacity(0.3))
+                    .shadow(color: color.opacity(on ? 0.9 : 0), radius: isSmall ? 4 : 8)
+                    .scaleEffect(on ? (isSmall ? 1.12 : 1.15) : 1.0)
+            }
+            .frame(width: isSmall ? 20 : 28, height: isSmall ? 20 : 28)
+            .animation(.easeInOut(duration: 0.1), value: on)
+        }
+    }
+}
+
 /// A card at the bottom of the chart with a symbol, a title, details and actions.
-private struct Card<Content: View, Actions: View>: View {
-    var symbol: String
-    var tint: Color
+private struct Card<LeadingIcon: View, Content: View, Actions: View>: View {
+    var leadingIcon: LeadingIcon
     var title: String
     @ViewBuilder var content: Content
     @ViewBuilder var actions: Actions
     var close: () -> Void
 
+    init(
+        title: String,
+        @ViewBuilder leadingIcon: () -> LeadingIcon,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder actions: () -> Actions,
+        close: @escaping () -> Void
+    ) {
+        self.title = title
+        self.leadingIcon = leadingIcon()
+        self.content = content()
+        self.actions = actions()
+        self.close = close
+    }
+
+    init(
+        symbol: String,
+        tint: Color,
+        title: String,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder actions: () -> Actions,
+        close: @escaping () -> Void
+    ) where LeadingIcon == AnyView {
+        self.title = title
+        self.leadingIcon = AnyView(
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(tint)
+                .frame(width: 28)
+        )
+        self.content = content()
+        self.actions = actions()
+        self.close = close
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.title3)
-                    .foregroundStyle(tint)
+                leadingIcon
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.headline)
@@ -73,13 +146,34 @@ struct InspectorCard: View {
     var inspection: AppModel.Inspection
     @State private var tide: SeaLevel?
 
+    private var lightCharacteristic: LightCharacteristic? {
+        inspection.seamark?.lightCharacteristic
+    }
+
     var body: some View {
-        Card(symbol: symbol, tint: tint, title: title) {
+        Card(title: title) {
+            if let char = lightCharacteristic {
+                FlashingLightIcon(characteristic: char)
+            } else {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(tint)
+                    .frame(width: 28)
+            }
+        } content: {
             if let mark = inspection.seamark {
                 if mark.name != nil { Text(mark.kind).font(.subheadline).foregroundStyle(.secondary) }
                 if let light = mark.light {
-                    Label(light, systemImage: "light.max")
-                        .font(.subheadline.monospaced())
+                    if let char = lightCharacteristic {
+                        HStack(spacing: 6) {
+                            FlashingLightIcon(characteristic: char, isSmall: true)
+                            Text(light)
+                                .font(.subheadline.weight(.semibold).monospaced())
+                        }
+                    } else {
+                        Label(light, systemImage: "light.max")
+                            .font(.subheadline.monospaced())
+                    }
                 }
                 if let colour = mark.colour {
                     Text(colour.replacingOccurrences(of: ";", with: " / ").capitalized)
@@ -110,7 +204,7 @@ struct InspectorCard: View {
             }
         } actions: {
             if inspection.sounding != .land || inspection.seamark?.isHarbourLike == true {
-                Button("Route here", systemImage: "point.topleft.down.to.point.bottomright.curvepath") {
+                Button("Navigate", systemImage: "point.topleft.down.to.point.bottomright.curvepath") {
                     model.routeHere(inspection.coordinate)
                 }
                 .buttonStyle(.glassProminent)
@@ -255,7 +349,7 @@ struct MarkCard: View {
                     .foregroundStyle(.secondary)
             }
         } actions: {
-            Button("Route here", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { model.routeHere(mark.coordinate) }
+            Button("Navigate", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { model.routeHere(mark.coordinate) }
                 .buttonStyle(.glassProminent)
             Button("Edit", systemImage: "pencil") { editing = true }
             Button("Delete", systemImage: "trash", role: .destructive) { model.deleteMark(mark) }

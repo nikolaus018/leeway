@@ -168,3 +168,89 @@ struct ChartStyleTests {
         #expect(ChartStyle.safetyContour(500, in: ChartStyle.packContours) == 100)
     }
 }
+
+struct LightCharacteristicTests {
+    @Test func parsesStandardDescriptions() {
+        // Fl(2)R.5s 12m 6M
+        let fl2r = LightCharacteristic.parse("Fl(2)R.5s 12m 6M")
+        #expect(fl2r != nil)
+        #expect(fl2r?.rhythm == .flashing)
+        #expect(fl2r?.group == 2)
+        #expect(fl2r?.color == .red)
+        #expect(fl2r?.period == 5.0)
+
+        // Iso.4s
+        let iso = LightCharacteristic.parse("Iso.4s")
+        #expect(iso?.rhythm == .isophase)
+        #expect(iso?.period == 4.0)
+        #expect(iso?.color == .white)
+
+        // Q(9)W.15s
+        let q9 = LightCharacteristic.parse("Q(9)W.15s")
+        #expect(q9?.rhythm == .quick)
+        #expect(q9?.group == 9)
+        #expect(q9?.period == 15.0)
+        #expect(q9?.color == .white)
+
+        // FG
+        let fg = LightCharacteristic.parse("FG")
+        #expect(fg?.rhythm == .fixed)
+        #expect(fg?.color == .green)
+        #expect(fg?.period == 1.0)
+
+        // Oc(3)Y.10s
+        let oc3y = LightCharacteristic.parse("Oc(3)Y.10s")
+        #expect(oc3y?.rhythm == .occulting)
+        #expect(oc3y?.group == 3)
+        #expect(oc3y?.color == .yellow)
+        #expect(oc3y?.period == 10.0)
+
+        // Mo(A)W.6s
+        let moA = LightCharacteristic.parse("Mo(A)W.6s")
+        if case .morse(let code) = moA?.rhythm {
+            #expect(code == "A")
+        } else {
+            Issue.record("Expected morse rhythm")
+        }
+    }
+
+    @Test func computesAccurateIsOnTiming() {
+        guard let fl = LightCharacteristic.parse("Fl.5s") else {
+            Issue.record("Failed to parse Fl.5s")
+            return
+        }
+
+        // Flashing rhythm has flash at start of cycle (t = 0..0.6s)
+        let t0 = Date(timeIntervalSinceReferenceDate: 0.1)
+        let tDark = Date(timeIntervalSinceReferenceDate: 2.5)
+        #expect(fl.isOn(at: t0) == true)
+        #expect(fl.isOn(at: tDark) == false)
+
+        // Fixed light is always on
+        guard let fixed = LightCharacteristic.parse("FR") else {
+            Issue.record("Failed to parse FR")
+            return
+        }
+        #expect(fixed.isOn(at: t0) == true)
+        #expect(fixed.isOn(at: tDark) == true)
+    }
+
+    @Test func parsesAdriaticSeamarksDataset() throws {
+        struct FileMeta: Decodable {
+            let seamarks: [Seamark]
+        }
+        let fileURL = URL(fileURLWithPath: "Leeway/Charts/adriatic.json")
+        if let data = try? Data(contentsOf: fileURL),
+           let meta = try? JSONDecoder().decode(FileMeta.self, from: data) {
+            var parsedCount = 0
+            for mark in meta.seamarks where mark.light != nil {
+                if let light = mark.lightCharacteristic {
+                    parsedCount += 1
+                    #expect(light.period > 0)
+                }
+            }
+            #expect(parsedCount > 400, "Should parse majority of the 512 seamarks with light characteristics")
+        }
+    }
+}
+

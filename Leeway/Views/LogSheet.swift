@@ -4,7 +4,7 @@ import SwiftUI
 /// Underway housekeeping: the track being recorded and past ones, the anchor watch, and marks.
 struct LogSheet: View {
     @Environment(AppModel.self) private var model
-    var close: () -> Void
+    var close: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -57,7 +57,7 @@ struct TrackSection: View {
 /// The user's marks: tap to show on the chart.
 private struct MarksSection: View {
     @Environment(AppModel.self) private var model
-    var close: () -> Void
+    var close: (() -> Void)? = nil
 
     var body: some View {
         Section {
@@ -65,7 +65,8 @@ private struct MarksSection: View {
                 Button {
                     model.centre(on: mark.coordinate, zoom: 14)
                     model.inspection = AppModel.Inspection(coordinate: mark.coordinate, mark: mark)
-                    close()
+                    model.selectedTab = .chart
+                    close?()
                 } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 1) {
@@ -100,7 +101,7 @@ private struct MarksSection: View {
 /// Finished passages: distance, time, speeds; show one on the chart or share it as GPX.
 private struct LogbookSection: View {
     @Environment(AppModel.self) private var model
-    var close: () -> Void
+    var close: (() -> Void)? = nil
 
     var body: some View {
         if !model.logbook.isEmpty {
@@ -108,7 +109,8 @@ private struct LogbookSection: View {
                 ForEach(model.logbook) { track in
                     Button {
                         model.show(track)
-                        close()
+                        model.selectedTab = .chart
+                        close?()
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {

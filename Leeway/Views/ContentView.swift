@@ -1,15 +1,76 @@
 import SwiftUI
 
-/// The chart, full screen, with as little on top of it as possible: an instrument strip and map
-/// controls at the top, a scale bar and one tab bar at the bottom. Everything else lives in sheets
-/// that open from the tab bar and get out of the way again.
+/// Main app interface using Apple's iOS HIG TabView architecture:
+/// 1. Chart: Full-screen interactive marine chart, navigation instruments, search, layers, and inspector cards.
+/// 2. Routes: Passage planning, leg analysis, departure weather, and saved routes.
+/// 3. Weather: Marine forecast, wind graphs, tides, sun times, and official warnings.
+/// 4. Log: Track recording, anchor watch, user marks, and logbook history.
+/// 5. Settings: Boat profile, alarms, NMEA connections, offline charts, and about.
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
-    @State private var sheet: AppSheet?
-    @State private var showingLayers = false
     @AppStorage("acceptedDisclaimer") private var acceptedDisclaimer = false
     @State private var showingOnboarding = false
+
+    var body: some View {
+        @Bindable var model = model
+        TabView(selection: $model.selectedTab) {
+            ChartTabView()
+                .tabItem {
+                    Label(AppTab.chart.title, systemImage: AppTab.chart.symbol)
+                }
+                .tag(AppTab.chart)
+
+            RouteSheet(close: { model.selectedTab = .chart })
+                .tabItem {
+                    Label(AppTab.routes.title, systemImage: AppTab.routes.symbol)
+                }
+                .tag(AppTab.routes)
+
+            WeatherSheet()
+                .tabItem {
+                    Label(AppTab.weather.title, systemImage: AppTab.weather.symbol)
+                }
+                .tag(AppTab.weather)
+
+            LogSheet(close: { model.selectedTab = .chart })
+                .tabItem {
+                    Label(AppTab.log.title, systemImage: AppTab.log.symbol)
+                }
+                .tag(AppTab.log)
+
+            SettingsSheet()
+                .tabItem {
+                    Label(AppTab.settings.title, systemImage: AppTab.settings.symbol)
+                }
+                .tag(AppTab.settings)
+        }
+        .preferredColorScheme(model.palette == .night ? .dark : nil)
+        .fullScreenCover(isPresented: $showingOnboarding) {
+            OnboardingView {
+                acceptedDisclaimer = true
+                showingOnboarding = false
+                model.location.start()
+            }
+        }
+        .task {
+            if acceptedDisclaimer { model.location.start() } else { showingOnboarding = true }
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in model.isActive = phase == .active }
+        .onChange(of: model.isEditing) { _, editing in
+            if editing { model.selectedTab = .chart }
+        }
+        .onChange(of: model.underway.isNavigating) { _, navigating in
+            if navigating { model.selectedTab = .chart }
+        }
+    }
+}
+
+/// The chart, full screen, with top instruments/controls and bottom cards respecting safe areas.
+struct ChartTabView: View {
+    @Environment(AppModel.self) private var model
+    @State private var showingLayers = false
+    @State private var showingSearch = false
 
     var body: some View {
         ChartMapView(
@@ -37,10 +98,15 @@ struct ContentView: View {
             focus: model.focus,
             onAddWaypoint: { coordinate in
                 model.addWaypoint(at: coordinate)
-                sheet = nil
             },
             onMoveWaypoint: { model.moveWaypoint($0, to: $1) },
-            onInspect: { model.inspect($0) },
+            onInspect: { hit in
+                if let hit {
+                    model.inspect(hit)
+                } else {
+                    model.inspection = nil
+                }
+            },
             onMeasure: { model.addMeasurePoint($0) },
             onRegionChange: { model.mapMoved(to: $0) },
             onTrackingChange: { model.tracking = $0 },
@@ -50,86 +116,34 @@ struct ContentView: View {
         .overlay {
             if model.showGrid { GridLabels(camera: model.camera) }
         }
-        .overlay(alignment: .top) { TopChrome(showingLayers: $showingLayers) }
-        .overlay(alignment: .bottom) { BottomChrome(sheet: $sheet) }
+        .overlay(alignment: .top) {
+            TopChrome(showingLayers: $showingLayers, showingSearch: $showingSearch)
+                .safeAreaPadding(.top)
+        }
+        .overlay(alignment: .bottom) {
+            BottomChrome()
+                .safeAreaPadding(.bottom)
+        }
         .animation(.smooth(duration: 0.25), value: model.isEditing)
         .animation(.smooth(duration: 0.25), value: model.inspection)
         .animation(.smooth(duration: 0.25), value: model.underway.isNavigating)
         .animation(.smooth(duration: 0.25), value: model.underway.mob?.time)
         .animation(.smooth(duration: 0.25), value: model.underway.anchorAlarm)
         .animation(.smooth(duration: 0.25), value: model.isMeasuring)
-        .sheet(item: $sheet) { sheet in
-            Group {
-                switch sheet {
-                case .search: SearchSheet(close: { self.sheet = nil })
-                case .route: RouteSheet(close: { self.sheet = nil })
-                case .weather: WeatherSheet()
-                case .log: LogSheet(close: { self.sheet = nil })
-                case .settings: SettingsSheet()
-                }
-            }
-            .presentationDetents(sheet == .search ? [.large] : [.medium, .large])
-            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-            .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showingSearch) {
+            SearchSheet(close: { showingSearch = false })
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingLayers) {
             LayersSheet()
                 .presentationDetents([.medium, .large])
-                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationDragIndicator(.visible)
         }
-        .onChange(of: model.isEditing) { _, editing in
-            // Editing happens on the chart: get the sheet out of the way.
-            if editing { sheet = nil }
-        }
-        .onChange(of: model.underway.isNavigating) { _, navigating in
-            if navigating { sheet = nil }
-        }
-        .onChange(of: model.routeOpenedRequest) { _, _ in
-            sheet = .route
-        }
-        // Night colours keep night vision: the whole app goes dark, sheets included.
-        .preferredColorScheme(model.palette == .night ? .dark : nil)
-        .fullScreenCover(isPresented: $showingOnboarding) {
-            OnboardingView {
-                acceptedDisclaimer = true
-                showingOnboarding = false
-                model.location.start()
-            }
-        }
-        .task {
-            if acceptedDisclaimer { model.location.start() } else { showingOnboarding = true }
-        }
-        .onChange(of: scenePhase, initial: true) { _, phase in model.isActive = phase == .active }
     }
 }
 
-enum AppSheet: String, Identifiable, CaseIterable {
-    case search, route, weather, log, settings
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .search: "Search"
-        case .route: "Route"
-        case .weather: "Weather"
-        case .log: "Log"
-        case .settings: "More"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .search: "magnifyingglass"
-        case .route: "point.topleft.down.to.point.bottomright.curvepath"
-        case .weather: "cloud.sun"
-        case .log: "book.closed"
-        case .settings: "ellipsis.circle"
-        }
-    }
-}
-
-private extension ContentView {
+private extension ChartTabView {
     var underwayMap: UnderwayMapState {
         let underway = model.underway
         let fix = model.location.location

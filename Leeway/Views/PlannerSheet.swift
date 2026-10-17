@@ -5,7 +5,7 @@ import SwiftUI
 /// Planning: a new passage, saved routes, or the open route with its timing, conditions and legs.
 struct RouteSheet: View {
     @Environment(AppModel.self) private var model
-    var close: () -> Void
+    var close: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -24,6 +24,14 @@ struct RouteSheet: View {
                 if !model.route.waypoints.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Close route", systemImage: "xmark") { model.closeRoute() }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            model.selectedTab = .chart
+                            close?()
+                        } label: {
+                            Label("View on Chart", systemImage: "map")
+                        }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu("Share", systemImage: "square.and.arrow.up") {
@@ -48,14 +56,14 @@ struct RouteSheet: View {
 private struct RouteHome: View {
     @Environment(AppModel.self) private var model
     @State private var importing = false
-    var close: () -> Void
+    var close: (() -> Void)? = nil
 
     var body: some View {
         List {
             Section {
                 Button {
                     model.startNewRoute()
-                    close()
+                    close?()
                 } label: {
                     Label("Plan a passage", systemImage: "point.topleft.down.to.point.bottomright.curvepath.fill")
                         .font(.headline)
@@ -65,7 +73,7 @@ private struct RouteHome: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             } footer: {
-                Text("Or long-press anywhere on the chart to drop a start point.")
+                Text("Tap on the chart to drop waypoints and plan your route.")
             }
 
             if !model.savedRoutes.isEmpty {
@@ -82,6 +90,16 @@ private struct RouteHome: View {
                             }
                         }
                         .tint(.primary)
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                model.open(route)
+                                model.selectedTab = .chart
+                                close?()
+                            } label: {
+                                Label("Chart", systemImage: "map")
+                            }
+                            .tint(.blue)
+                        }
                     }
                     .onDelete { model.deleteRoutes(at: $0) }
                 }
@@ -113,14 +131,25 @@ private struct RouteList: View {
                         Button("Stop navigation", systemImage: "stop.fill", role: .destructive) { model.stopNavigation() }
                             .frame(maxWidth: .infinity)
                     } else {
-                        Button {
-                            model.startNavigation()
-                        } label: {
-                            Label("Start navigation", systemImage: "location.north.line.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, minHeight: 32)
+                        HStack(spacing: 12) {
+                            Button {
+                                model.startNavigation()
+                            } label: {
+                                Label("Start navigation", systemImage: "location.north.line.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 32)
+                            }
+                            .buttonStyle(.glassProminent)
+
+                            Button {
+                                model.selectedTab = .chart
+                            } label: {
+                                Label("Chart", systemImage: "map")
+                                    .font(.headline)
+                                    .frame(minHeight: 32)
+                            }
+                            .buttonStyle(.glass)
                         }
-                        .buttonStyle(.glassProminent)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                     }
@@ -180,7 +209,10 @@ private struct RouteList: View {
             Section {
                 TextField("Route name", text: $model.route.name)
                 if !model.isEditing {
-                    Button("Edit waypoints", systemImage: "pencil") { model.isEditing = true }
+                    Button("Edit waypoints", systemImage: "pencil") {
+                        model.isEditing = true
+                        model.selectedTab = .chart
+                    }
                 }
                 Button("Reverse route", systemImage: "arrow.left.arrow.right") { model.reverseRoute() }
                     .disabled(model.route.waypoints.count < 2)
