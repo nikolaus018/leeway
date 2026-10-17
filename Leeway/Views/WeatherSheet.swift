@@ -87,7 +87,7 @@ struct WeatherHereSection: View {
                 .foregroundStyle(.secondary)
             }
         } header: {
-            Text(model.location.location == nil ? "Weather · Rijeka" : "Weather here")
+            Text("Wind")
         } footer: {
             if let forecast = model.localForecast, let wind = forecast.windModels(from: .now, to: .now.addingTimeInterval(86400)).first?.model {
                 Text("Wind and gusts (kn), next 24 h · \(wind.label) · via \(forecast.source)")

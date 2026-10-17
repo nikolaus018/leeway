@@ -8,6 +8,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var sheet: AppSheet?
     @State private var showingLayers = false
+    @AppStorage("acceptedDisclaimer") private var acceptedDisclaimer = false
+    @State private var showingOnboarding = false
 
     var body: some View {
         ChartMapView(
@@ -86,7 +88,18 @@ struct ContentView: View {
         .onChange(of: model.routeOpenedRequest) { _, _ in
             sheet = .route
         }
-        .task { model.location.start() }
+        // Night colours keep night vision: the whole app goes dark, sheets included.
+        .preferredColorScheme(model.palette == .night ? .dark : nil)
+        .fullScreenCover(isPresented: $showingOnboarding) {
+            OnboardingView {
+                acceptedDisclaimer = true
+                showingOnboarding = false
+                model.location.start()
+            }
+        }
+        .task {
+            if acceptedDisclaimer { model.location.start() } else { showingOnboarding = true }
+        }
         .onChange(of: scenePhase, initial: true) { _, phase in model.isActive = phase == .active }
     }
 }

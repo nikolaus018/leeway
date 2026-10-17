@@ -241,17 +241,24 @@ final class AppModel {
         #endif
     }
 
+    /// A `-name value` launch argument, read raw (the defaults system can't parse "45.0,14.4,0.5").
+    static func debugArgument(_ name: String) -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let i = arguments.firstIndex(of: "-\(name)"), i + 1 < arguments.count else { return nil }
+        return arguments[i + 1].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+    }
+
     #if DEBUG
     /// `-debugRoute "lat,lon;lat,lon;…"` as a launch argument opens that route (for simulator testing).
     private func loadDebugRoute() {
-        guard let spec = UserDefaults.standard.string(forKey: "debugRoute") else { return }
+        guard let spec = Self.debugArgument("debugRoute") else { return }
         var debug = Route()
         debug.name = "Debug route"
         debug.waypoints = spec.split(separator: ";").compactMap { pair in
             let parts = pair.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
             return parts.count == 2 ? Waypoint(CLLocationCoordinate2D(latitude: parts[0], longitude: parts[1])) : nil
         }
-        if UserDefaults.standard.string(forKey: "debugMode") == "manual" { debug.mode = .manual }
+        if let mode = Self.debugArgument("debugMode").flatMap(RoutingMode.init(rawValue:)) { debug.mode = mode }
         open(debug)
     }
     #endif
@@ -687,7 +694,7 @@ final class AppModel {
     private func planChanged() {
         recompute()
         refreshForecast()
-        if fitPending, routingState != .routing, UserDefaults.standard.string(forKey: "debugCenter") == nil {
+        if fitPending, routingState != .routing, Self.debugArgument("debugCenter") == nil {
             fitPending = false
             fitRouteRequest += 1
         }

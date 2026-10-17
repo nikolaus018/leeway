@@ -28,6 +28,7 @@
 		5F5F45A8B2D70DB64E0A9411 /* DepartureChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DCF24BFFDF645642194F67 /* DepartureChart.swift */; };
 		6043ED12D6F724A2EFB8C6E6 /* UnderwayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */; };
 		610C04EA5AEAE450FED5B623 /* LayersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAF228C3BB180D257EEB29C2 /* LayersSheet.swift */; };
+		612204BBF9E31154899247F6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 65C8845E55BA88F208B08E2C /* PrivacyInfo.xcprivacy */; };
 		6197E972295C732811199DB1 /* WeatherSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */; };
 		6520014401BE4D67EEBBADD7 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
 		683F89877EFD76FB605D2EBF /* BoatSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD944797596A69421E6B18E /* BoatSettingsView.swift */; };
@@ -35,6 +36,7 @@
 		6B884780A4C4CF6128DED789 /* ChartRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */; };
 		6D88514E5369F87AB5C343EE /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A941943CD9C1660AB75F7EA7 /* SettingsSheet.swift */; };
 		6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
+		765E54B8994CBFA7C6954811 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B55B3ED8E6478FE165A78EE /* OnboardingView.swift */; };
 		835C00D16C1EB15447654ED9 /* ChartMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */; };
 		867D3251A6B82D3568D8A7BA /* LeewayWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9AFBE0C19BE461BCB93CACFC /* PolarTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DAF7C29A85C14CB73C7B4C /* PolarTable.swift */; };
@@ -100,10 +102,12 @@
 		32E9D2DD05AF42C421217387 /* PassageSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageSimulator.swift; sourceTree = "<group>"; };
 		35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayLiveActivity.swift; sourceTree = "<group>"; };
 		39EB09DAE69D74F326D91821 /* PlannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerSheet.swift; sourceTree = "<group>"; };
+		3B55B3ED8E6478FE165A78EE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		45FF9DFAB55E475CE196237B /* MapChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapChrome.swift; sourceTree = "<group>"; };
 		52F2994046CCEA04C05EB831 /* SeamarkSymbols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeamarkSymbols.swift; sourceTree = "<group>"; };
 		5938B4FFF285100FF120FF77 /* ChartOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlays.swift; sourceTree = "<group>"; };
 		5C413FE184C3EC462C037FD5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		65C8845E55BA88F208B08E2C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		70DCF24BFFDF645642194F67 /* DepartureChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureChart.swift; sourceTree = "<group>"; };
 		713127C69E2434FB93B1CC90 /* ServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicesTests.swift; sourceTree = "<group>"; };
 		726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSheet.swift; sourceTree = "<group>"; };
@@ -203,6 +207,7 @@
 				B524F876411C0E585A45E69D /* Charts */,
 				C1671BA8B32130E96C85BAB3 /* Info.plist */,
 				7511A622C3058332BF87ED39 /* LeewayApp.swift */,
+				65C8845E55BA88F208B08E2C /* PrivacyInfo.xcprivacy */,
 				E2EF0E5004065D6929FCFE79 /* Map */,
 				B49D7D64826024CF085E939B /* Model */,
 				47EB5393DE3F718E2A2CF073 /* Services */,
@@ -239,6 +244,7 @@
 				19A36D6D617334874E5388BE /* LegRow.swift */,
 				C652AB69062550FF8150B40E /* LogSheet.swift */,
 				45FF9DFAB55E475CE196237B /* MapChrome.swift */,
+				3B55B3ED8E6478FE165A78EE /* OnboardingView.swift */,
 				39EB09DAE69D74F326D91821 /* PlannerSheet.swift */,
 				7430E964825E73B4E23027DD /* SearchSheet.swift */,
 				A941943CD9C1660AB75F7EA7 /* SettingsSheet.swift */,
@@ -392,6 +398,7 @@
 			files = (
 				53752DD1D6887AE9B90E51E7 /* Assets.xcassets in Resources */,
 				E681E9D7EDA4BF6756D1A94C /* Charts in Resources */,
+				612204BBF9E31154899247F6 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -435,6 +442,7 @@
 				684FED2DC7B3F69274DEEF4B /* Models.swift in Sources */,
 				139DB14FCB5059159F49471D /* NMEA.swift in Sources */,
 				390959FEEA812EB0A4615648 /* OfflineMaps.swift in Sources */,
+				765E54B8994CBFA7C6954811 /* OnboardingView.swift in Sources */,
 				13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */,
 				D05931A40FD026D94AEA060A /* PlannerSheet.swift in Sources */,
 				B24CA7880074F5C5702A69BD /* Polar.swift in Sources */,
@@ -525,7 +533,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -609,7 +617,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

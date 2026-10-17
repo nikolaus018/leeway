@@ -92,7 +92,7 @@ struct ChartMapView: UIViewRepresentable {
     /// Kvarner, or `-debugCenter "lat,lon,spanDegrees"` in debug builds (simulator testing).
     fileprivate static var initialCamera: (CLLocationCoordinate2D, Double) {
         #if DEBUG
-        if let spec = UserDefaults.standard.string(forKey: "debugCenter") {
+        if let spec = AppModel.debugArgument("debugCenter") {
             let v = spec.split(separator: ",").compactMap { Double($0) }
             if v.count == 3 {
                 return (CLLocationCoordinate2D(latitude: v[0], longitude: v[1]), log2(360 / max(v[2], 0.001)) + 0.5)

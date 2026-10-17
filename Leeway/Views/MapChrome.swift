@@ -92,7 +92,16 @@ struct InstrumentStrip: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 18))
-        .accessibilityLabel("Instruments")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(instrumentsDescription)
+        .accessibilityHint("Shows your position")
+    }
+
+    private var instrumentsDescription: String {
+        let t = model.location
+        let speed = t.sog.map { String(format: "Speed %.1f knots", $0) } ?? "No speed"
+        let course = t.cog.map { String(format: "course %03.0f degrees", $0) } ?? "no course"
+        return "\(speed), \(course), depth \(depth) metres"
     }
 
     /// From the boat's sounder over NMEA when connected, else the chart.
