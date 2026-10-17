@@ -1,0 +1,599 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		033DFA85666DC37E81C16A6B /* ChartPainter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35E3AD915E30BC77896889B /* ChartPainter.swift */; };
+		0F654DD20A77AD3A13CD65DC /* LeewayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7511A622C3058332BF87ED39 /* LeewayApp.swift */; };
+		13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32E9D2DD05AF42C421217387 /* PassageSimulator.swift */; };
+		1544E1FDBA37677E1133E615 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FA840B4C2062B0CFC9B730 /* Router.swift */; };
+		2F22744FD3620E7BF2A7FAD1 /* UnderwayLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */; };
+		3A1D3E98A426BCD54D2118BF /* LiveAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F31EAEB65ABB42F88BDA4D9 /* LiveAnnotations.swift */; };
+		40F6AE66E0E2B97EBC6C2B4D /* ChartOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5938B4FFF285100FF120FF77 /* ChartOverlays.swift */; };
+		41440C1344C0A10FB1E594BC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4353055592D8D20873CF331 /* AppModel.swift */; };
+		43F264534EBE3D877D15982E /* Seadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94967BD098A1B2EE451C00FF /* Seadata.swift */; };
+		522E16DE5A944F067BF4DF7B /* Geo.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85E889D9B66A8A1749ABE3B /* Geo.swift */; };
+		53752DD1D6887AE9B90E51E7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8EFE94CB30882F51F914BB57 /* Assets.xcassets */; };
+		5F5F45A8B2D70DB64E0A9411 /* DepartureChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DCF24BFFDF645642194F67 /* DepartureChart.swift */; };
+		6043ED12D6F724A2EFB8C6E6 /* UnderwayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */; };
+		6520014401BE4D67EEBBADD7 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
+		683F89877EFD76FB605D2EBF /* BoatSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD944797596A69421E6B18E /* BoatSettingsView.swift */; };
+		684FED2DC7B3F69274DEEF4B /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */; };
+		6A1AF10462E3413355153D96 /* ChartOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C844FF0AC40C49FEB4CBEF /* ChartOverlay.swift */; };
+		6A54446EE0DE0FA390E5BDEB /* InstrumentsHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CAC064CAC52D4714BA75F4 /* InstrumentsHUD.swift */; };
+		6B884780A4C4CF6128DED789 /* ChartRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */; };
+		6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
+		835C00D16C1EB15447654ED9 /* ChartMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */; };
+		867D3251A6B82D3568D8A7BA /* LeewayWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		ABA00B80D4F3B941F068ED82 /* LegRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A36D6D617334874E5388BE /* LegRow.swift */; };
+		B24CA7880074F5C5702A69BD /* Polar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA318DCECB6195CF45242E2 /* Polar.swift */; };
+		B4FA6116BAD404706B373070 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C413FE184C3EC462C037FD5 /* ContentView.swift */; };
+		C15DCB97DAF6F4D2A42AFCAD /* Underway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020A1994950863B5E101FC3C /* Underway.swift */; };
+		C4414426B3B6EA1F6AFC3CE8 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */; };
+		C7551728DBFB734A01B30851 /* ChartStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */; };
+		CB97B8C5E1052CE568DB31E5 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */; };
+		D05931A40FD026D94AEA060A /* PlannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39EB09DAE69D74F326D91821 /* PlannerSheet.swift */; };
+		E03B79018EB52644D650DB4F /* MarineWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93883863C8AA97C51F552BD /* MarineWeatherService.swift */; };
+		E681E9D7EDA4BF6756D1A94C /* Charts in Resources */ = {isa = PBXBuildFile; fileRef = B524F876411C0E585A45E69D /* Charts */; };
+		E6AF15980B50CAFA1E56C3D6 /* DataSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F7B08FA605B2D0131D5427 /* DataSettingsView.swift */; };
+		EEC85793A5848836D3868B4A /* Annotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC572956552E0661819FAE4 /* Annotations.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8FEF4F733C41B5EE0815740A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB8AD6106F2DD3C14CA57CFB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5DC3BFCDC67730E00EB13C74;
+			remoteInfo = LeewayWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		671E8C9F8C8F170AFB375F9A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				867D3251A6B82D3568D8A7BA /* LeewayWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		020A1994950863B5E101FC3C /* Underway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Underway.swift; sourceTree = "<group>"; };
+		12CAC064CAC52D4714BA75F4 /* InstrumentsHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentsHUD.swift; sourceTree = "<group>"; };
+		18C224E8BAB29A9C87B37793 /* Leeway.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Leeway.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		19A36D6D617334874E5388BE /* LegRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegRow.swift; sourceTree = "<group>"; };
+		209F0DD62480A15FAD2A6271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTracker.swift; sourceTree = "<group>"; };
+		2FA318DCECB6195CF45242E2 /* Polar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Polar.swift; sourceTree = "<group>"; };
+		30F7B08FA605B2D0131D5427 /* DataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettingsView.swift; sourceTree = "<group>"; };
+		32E9D2DD05AF42C421217387 /* PassageSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageSimulator.swift; sourceTree = "<group>"; };
+		35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayLiveActivity.swift; sourceTree = "<group>"; };
+		39EB09DAE69D74F326D91821 /* PlannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerSheet.swift; sourceTree = "<group>"; };
+		3F31EAEB65ABB42F88BDA4D9 /* LiveAnnotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAnnotations.swift; sourceTree = "<group>"; };
+		5938B4FFF285100FF120FF77 /* ChartOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlays.swift; sourceTree = "<group>"; };
+		5C413FE184C3EC462C037FD5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		70DCF24BFFDF645642194F67 /* DepartureChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureChart.swift; sourceTree = "<group>"; };
+		7511A622C3058332BF87ED39 /* LeewayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeewayApp.swift; sourceTree = "<group>"; };
+		76C844FF0AC40C49FEB4CBEF /* ChartOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlay.swift; sourceTree = "<group>"; };
+		8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayViews.swift; sourceTree = "<group>"; };
+		8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStore.swift; sourceTree = "<group>"; };
+		8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRegion.swift; sourceTree = "<group>"; };
+		8EFE94CB30882F51F914BB57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		94967BD098A1B2EE451C00FF /* Seadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Seadata.swift; sourceTree = "<group>"; };
+		9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartMapView.swift; sourceTree = "<group>"; };
+		B524F876411C0E585A45E69D /* Charts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Charts; path = Leeway/Charts; sourceTree = SOURCE_ROOT; };
+		BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
+		C1671BA8B32130E96C85BAB3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C35E3AD915E30BC77896889B /* ChartPainter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartPainter.swift; sourceTree = "<group>"; };
+		C85E889D9B66A8A1749ABE3B /* Geo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geo.swift; sourceTree = "<group>"; };
+		CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayActivity.swift; sourceTree = "<group>"; };
+		D93883863C8AA97C51F552BD /* MarineWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarineWeatherService.swift; sourceTree = "<group>"; };
+		DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LeewayWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DDD944797596A69421E6B18E /* BoatSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoatSettingsView.swift; sourceTree = "<group>"; };
+		E4353055592D8D20873CF331 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		E8FA840B4C2062B0CFC9B730 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
+		EAC572956552E0661819FAE4 /* Annotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Annotations.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		093B2E17165BB3E429C4AA3D /* LeewayWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				209F0DD62480A15FAD2A6271 /* Info.plist */,
+				35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */,
+			);
+			path = LeewayWidgets;
+			sourceTree = "<group>";
+		};
+		47EB5393DE3F718E2A2CF073 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */,
+				BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */,
+				2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */,
+				D93883863C8AA97C51F552BD /* MarineWeatherService.swift */,
+				94967BD098A1B2EE451C00FF /* Seadata.swift */,
+				020A1994950863B5E101FC3C /* Underway.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		812A2AC622A6C8203FB23A3B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				18C224E8BAB29A9C87B37793 /* Leeway.app */,
+				DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		816DD60691BB8D2EF2DD5A36 /* Leeway */ = {
+			isa = PBXGroup;
+			children = (
+				E4353055592D8D20873CF331 /* AppModel.swift */,
+				8EFE94CB30882F51F914BB57 /* Assets.xcassets */,
+				B524F876411C0E585A45E69D /* Charts */,
+				C1671BA8B32130E96C85BAB3 /* Info.plist */,
+				7511A622C3058332BF87ED39 /* LeewayApp.swift */,
+				E2EF0E5004065D6929FCFE79 /* Map */,
+				B49D7D64826024CF085E939B /* Model */,
+				47EB5393DE3F718E2A2CF073 /* Services */,
+				B4CAB50F4B97274D4C145CBB /* Views */,
+			);
+			path = Leeway;
+			sourceTree = "<group>";
+		};
+		B49D7D64826024CF085E939B /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */,
+				C85E889D9B66A8A1749ABE3B /* Geo.swift */,
+				CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */,
+				32E9D2DD05AF42C421217387 /* PassageSimulator.swift */,
+				2FA318DCECB6195CF45242E2 /* Polar.swift */,
+				E8FA840B4C2062B0CFC9B730 /* Router.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		B4CAB50F4B97274D4C145CBB /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				DDD944797596A69421E6B18E /* BoatSettingsView.swift */,
+				5938B4FFF285100FF120FF77 /* ChartOverlays.swift */,
+				5C413FE184C3EC462C037FD5 /* ContentView.swift */,
+				30F7B08FA605B2D0131D5427 /* DataSettingsView.swift */,
+				70DCF24BFFDF645642194F67 /* DepartureChart.swift */,
+				12CAC064CAC52D4714BA75F4 /* InstrumentsHUD.swift */,
+				19A36D6D617334874E5388BE /* LegRow.swift */,
+				39EB09DAE69D74F326D91821 /* PlannerSheet.swift */,
+				8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		C0291877E780404A506FF385 = {
+			isa = PBXGroup;
+			children = (
+				816DD60691BB8D2EF2DD5A36 /* Leeway */,
+				093B2E17165BB3E429C4AA3D /* LeewayWidgets */,
+				FFD33C903F81A808F4F9DEB2 /* Shared */,
+				812A2AC622A6C8203FB23A3B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E2EF0E5004065D6929FCFE79 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				EAC572956552E0661819FAE4 /* Annotations.swift */,
+				9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */,
+				76C844FF0AC40C49FEB4CBEF /* ChartOverlay.swift */,
+				C35E3AD915E30BC77896889B /* ChartPainter.swift */,
+				3F31EAEB65ABB42F88BDA4D9 /* LiveAnnotations.swift */,
+			);
+			path = Map;
+			sourceTree = "<group>";
+		};
+		FFD33C903F81A808F4F9DEB2 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0532F9C097B3BD703E4F66F9 /* Leeway */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 270B578D209451A7D96974E2 /* Build configuration list for PBXNativeTarget "Leeway" */;
+			buildPhases = (
+				80A27FC6FACED3107127E7A6 /* Sources */,
+				0E397F9C92578E02E4320049 /* Resources */,
+				671E8C9F8C8F170AFB375F9A /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AB383A44089C12FA6F213E2A /* PBXTargetDependency */,
+			);
+			name = Leeway;
+			packageProductDependencies = (
+			);
+			productName = Leeway;
+			productReference = 18C224E8BAB29A9C87B37793 /* Leeway.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5DC3BFCDC67730E00EB13C74 /* LeewayWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F2895B11B6BCD31F1FD6553 /* Build configuration list for PBXNativeTarget "LeewayWidgets" */;
+			buildPhases = (
+				2A6BAFAB79F0F30266FECF41 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LeewayWidgets;
+			packageProductDependencies = (
+			);
+			productName = LeewayWidgets;
+			productReference = DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BB8AD6106F2DD3C14CA57CFB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0532F9C097B3BD703E4F66F9 = {
+						DevelopmentTeam = C5MSK2XBMK;
+						ProvisioningStyle = Automatic;
+					};
+					5DC3BFCDC67730E00EB13C74 = {
+						DevelopmentTeam = C5MSK2XBMK;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = AD24C0FD5FCAB6EA3BC7AC93 /* Build configuration list for PBXProject "Leeway" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = C0291877E780404A506FF385;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 812A2AC622A6C8203FB23A3B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0532F9C097B3BD703E4F66F9 /* Leeway */,
+				5DC3BFCDC67730E00EB13C74 /* LeewayWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0E397F9C92578E02E4320049 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				53752DD1D6887AE9B90E51E7 /* Assets.xcassets in Resources */,
+				E681E9D7EDA4BF6756D1A94C /* Charts in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2A6BAFAB79F0F30266FECF41 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6520014401BE4D67EEBBADD7 /* UnderwayActivity.swift in Sources */,
+				2F22744FD3620E7BF2A7FAD1 /* UnderwayLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		80A27FC6FACED3107127E7A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EEC85793A5848836D3868B4A /* Annotations.swift in Sources */,
+				41440C1344C0A10FB1E594BC /* AppModel.swift in Sources */,
+				683F89877EFD76FB605D2EBF /* BoatSettingsView.swift in Sources */,
+				835C00D16C1EB15447654ED9 /* ChartMapView.swift in Sources */,
+				6A1AF10462E3413355153D96 /* ChartOverlay.swift in Sources */,
+				40F6AE66E0E2B97EBC6C2B4D /* ChartOverlays.swift in Sources */,
+				033DFA85666DC37E81C16A6B /* ChartPainter.swift in Sources */,
+				6B884780A4C4CF6128DED789 /* ChartRegion.swift in Sources */,
+				C7551728DBFB734A01B30851 /* ChartStore.swift in Sources */,
+				B4FA6116BAD404706B373070 /* ContentView.swift in Sources */,
+				E6AF15980B50CAFA1E56C3D6 /* DataSettingsView.swift in Sources */,
+				5F5F45A8B2D70DB64E0A9411 /* DepartureChart.swift in Sources */,
+				522E16DE5A944F067BF4DF7B /* Geo.swift in Sources */,
+				6A54446EE0DE0FA390E5BDEB /* InstrumentsHUD.swift in Sources */,
+				0F654DD20A77AD3A13CD65DC /* LeewayApp.swift in Sources */,
+				ABA00B80D4F3B941F068ED82 /* LegRow.swift in Sources */,
+				C4414426B3B6EA1F6AFC3CE8 /* LiveActivityController.swift in Sources */,
+				3A1D3E98A426BCD54D2118BF /* LiveAnnotations.swift in Sources */,
+				CB97B8C5E1052CE568DB31E5 /* LocationTracker.swift in Sources */,
+				E03B79018EB52644D650DB4F /* MarineWeatherService.swift in Sources */,
+				684FED2DC7B3F69274DEEF4B /* Models.swift in Sources */,
+				13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */,
+				D05931A40FD026D94AEA060A /* PlannerSheet.swift in Sources */,
+				B24CA7880074F5C5702A69BD /* Polar.swift in Sources */,
+				1544E1FDBA37677E1133E615 /* Router.swift in Sources */,
+				43F264534EBE3D877D15982E /* Seadata.swift in Sources */,
+				C15DCB97DAF6F4D2A42AFCAD /* Underway.swift in Sources */,
+				6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */,
+				6043ED12D6F724A2EFB8C6E6 /* UnderwayViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AB383A44089C12FA6F213E2A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5DC3BFCDC67730E00EB13C74 /* LeewayWidgets */;
+			targetProxy = 8FEF4F733C41B5EE0815740A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		05C5B28389FFC4BC27873054 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		16543D2F44D24590547C1E90 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
+				INFOPLIST_FILE = LeewayWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikolausmarek.leeway.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3759CE1A17FCA7543545FBCA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A765AF4B11685B1EB214C7A9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
+				INFOPLIST_FILE = Leeway/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikolausmarek.leeway;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B182AF641AAD1D9DBE023F26 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
+				INFOPLIST_FILE = Leeway/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikolausmarek.leeway;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CBCDDE0D763EF8F0916DCA14 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C5MSK2XBMK;
+				INFOPLIST_FILE = LeewayWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikolausmarek.leeway.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		270B578D209451A7D96974E2 /* Build configuration list for PBXNativeTarget "Leeway" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B182AF641AAD1D9DBE023F26 /* Debug */,
+				A765AF4B11685B1EB214C7A9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9F2895B11B6BCD31F1FD6553 /* Build configuration list for PBXNativeTarget "LeewayWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				16543D2F44D24590547C1E90 /* Debug */,
+				CBCDDE0D763EF8F0916DCA14 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AD24C0FD5FCAB6EA3BC7AC93 /* Build configuration list for PBXProject "Leeway" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3759CE1A17FCA7543545FBCA /* Debug */,
+				05C5B28389FFC4BC27873054 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BB8AD6106F2DD3C14CA57CFB /* Project object */;
+}
