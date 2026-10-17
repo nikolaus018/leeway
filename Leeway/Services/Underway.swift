@@ -122,7 +122,11 @@ final class Underway {
     }
 
     func manOverboard() {
-        guard let fix = lastFix else { return }
+        guard let fix = lastFix else {
+            // No position yet: still raise the alarm, so the crew knows the button worked.
+            alarm.sound(.mob, message: "Man overboard. There is no GPS position yet: note the time.")
+            return
+        }
         mob = ManOverboard(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude, time: .now)
         alarm.sound(.mob)
         update(with: fix)
@@ -186,7 +190,10 @@ final class Underway {
             mobDistance = Geo.distanceNM(here, mob.coordinate)
         }
 
-        if let anchor, fix.horizontalAccuracy >= 0, fix.horizontalAccuracy < 30 {
+        if let anchor, fix.horizontalAccuracy >= 0,
+           // A poor fix is only used when it still puts the boat clearly outside the circle: otherwise a
+           // drifting boat with a weak signal would never raise the alarm.
+           fix.horizontalAccuracy < 30 || Geo.distanceNM(anchor.coordinate, here) * 1852 - fix.horizontalAccuracy > anchor.radius {
             let metres = Geo.distanceNM(anchor.coordinate, here) * 1852
             anchorDistance = metres
             anchorMaxDistance = max(anchorMaxDistance, metres)
@@ -249,6 +256,26 @@ final class Underway {
             etaFinish: sog.flatMap { $0 > 0.5 ? Date.now.addingTimeInterval(remaining / $0 * 3600) : nil },
             offCourse: offCourse
         )
+    }
+
+    // MARK: GPS signal
+
+    private var signalAlarmed = false
+
+    /// Called every few seconds: with the anchor down and no GPS fix for two minutes, the watch can't tell
+    /// whether the boat is dragging, so it says so.
+    func checkSignal(now: Date = .now) {
+        guard anchor != nil, let last = lastFix else {
+            signalAlarmed = false
+            return
+        }
+        if now.timeIntervalSince(last.timestamp) > 120 {
+            guard !signalAlarmed else { return }
+            signalAlarmed = true
+            alarm.sound(.gps, message: "No GPS signal for two minutes: the anchor watch is blind.")
+        } else {
+            signalAlarmed = false
+        }
     }
 
     // MARK: Live Activity
@@ -329,7 +356,7 @@ final class Underway {
 
 /// Loud, repeated alarms that work with the phone on silent, plus a notification when the app is in the background.
 final class AlarmPlayer {
-    enum Kind { case mob, anchor, arrival, collision, shallow }
+    enum Kind { case mob, anchor, arrival, collision, shallow, gps }
 
     private var ringing: Task<Void, Never>?
 
@@ -366,6 +393,7 @@ final class AlarmPlayer {
             case .mob: "Man overboard"
             case .collision: "Collision risk"
             case .shallow: "Shallow water"
+            case .gps: "GPS signal lost"
             case .arrival: "Leeway"
             }
             content.body = message

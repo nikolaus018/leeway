@@ -238,6 +238,7 @@ final class AppModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
                 self?.checkCollisions()
+                self?.underway.checkSignal()
             }
         }
         // Picking up where we left off (navigating, at anchor, MOB): show the boat.

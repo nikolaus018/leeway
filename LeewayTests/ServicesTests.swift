@@ -193,6 +193,13 @@ struct ChartStyleTests {
 }
 
 struct LightCharacteristicTests {
+    @Test func occultingIsMostlyLightWithEclipses() throws {
+        // Oc(2) 6 s: eclipse 0-1, light 1-2, eclipse 2-3, then light until 6.
+        let light = try #require(LightCharacteristic.parse("Oc(2)W.6s"))
+        func on(_ t: Double) -> Bool { light.isOn(at: Date(timeIntervalSinceReferenceDate: t)) }
+        #expect(!on(0.5) && on(1.5) && !on(2.5) && on(3.5) && on(5.5))
+    }
+
     @Test func parsesStandardDescriptions() {
         // Fl(2)R.5s 12m 6M
         let fl2r = LightCharacteristic.parse("Fl(2)R.5s 12m 6M")

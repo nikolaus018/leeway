@@ -299,12 +299,10 @@ nonisolated struct LightCharacteristic: Sendable, Hashable {
             return normalizedPhase < (period / 2.0)
 
         case .occulting:
-            let eclipseDuration = 1.0
-            let darkStart = max(0, period - eclipseDuration * Double(group))
-            if normalizedPhase < darkStart { return true }
-            let inEclipse = normalizedPhase - darkStart
-            let cycle = inEclipse.truncatingRemainder(dividingBy: eclipseDuration)
-            return cycle > (eclipseDuration * 0.7)
+            // Light mostly on, broken by `group` one-second eclipses, a second of light between them.
+            let span = Double(max(group, 1) * 2 - 1)
+            if normalizedPhase >= span { return true }
+            return Int(normalizedPhase) % 2 == 1
 
         case .flashing, .longFlashing, .quick, .veryQuick:
             let (flashDuration, flashInterval): (Double, Double) = switch rhythm {
