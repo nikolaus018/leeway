@@ -67,7 +67,8 @@ private struct RouteHome: View {
                 } label: {
                     Label("Plan a passage", systemImage: "point.topleft.down.to.point.bottomright.curvepath.fill")
                         .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
                 }
                 .buttonStyle(.glassProminent)
                 .listRowBackground(Color.clear)
