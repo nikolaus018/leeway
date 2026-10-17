@@ -331,7 +331,7 @@ final class Underway {
 final class AlarmPlayer {
     enum Kind { case mob, anchor, arrival, collision, shallow }
 
-    private var timer: Timer?
+    private var ringing: Task<Void, Never>?
 
     func sound(_ kind: Kind, message: String? = nil) {
         stop()
@@ -346,9 +346,17 @@ final class AlarmPlayer {
         if repeating {
             // The anchor alarm rings until silenced; MOB and collision ring a few times, then let the crew work.
             var remaining = kind == .anchor ? Int.max : kind == .collision ? 2 : 4
-            timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-                remaining -= 1
-                if remaining < 0 { self?.stop() } else { play() }
+            ringing = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    remaining -= 1
+                    if remaining < 0 {
+                        self?.stop()
+                        return
+                    }
+                    play()
+                }
             }
         }
         if let message, UIApplication.shared.applicationState != .active {
@@ -373,8 +381,8 @@ final class AlarmPlayer {
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        ringing?.cancel()
+        ringing = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }

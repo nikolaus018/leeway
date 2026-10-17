@@ -56,7 +56,7 @@ type Index = Vec<(String, Place)>;
 pub struct Search {
     http: reqwest::Client,
     config: Arc<Config>,
-    local: RwLock<Option<(Index, std::time::Instant)>>,
+    local: RwLock<Option<(Arc<Index>, std::time::Instant)>>,
     online: Cache<String, Arc<Vec<Place>>>,
     /// Photon is a free community service: one request at a time from us.
     upstream: Semaphore,
@@ -92,17 +92,17 @@ impl Search {
         }
     }
 
-    async fn local_index(&self) -> Vec<(String, Place)> {
+    async fn local_index(&self) -> Arc<Index> {
         {
             if let Some((index, loaded)) = self.local.read().await.as_ref() {
                 if loaded.elapsed() < Duration::from_secs(600) {
-                    return index.clone();
+                    return Arc::clone(index);
                 }
             }
         }
         let dir = self.config.charts_dir.clone();
-        let index = tokio::task::spawn_blocking(move || index_packs(&dir)).await.unwrap_or_default();
-        *self.local.write().await = Some((index.clone(), std::time::Instant::now()));
+        let index = Arc::new(tokio::task::spawn_blocking(move || index_packs(&dir)).await.unwrap_or_default());
+        *self.local.write().await = Some((Arc::clone(&index), std::time::Instant::now()));
         index
     }
 
@@ -112,7 +112,7 @@ impl Search {
             return Ok(Vec::new());
         }
         let mut candidates: Vec<Place> =
-            self.local_index().await.into_iter().filter(|(key, _)| key.contains(&q)).map(|(_, place)| place).collect();
+            self.local_index().await.iter().filter(|(key, _)| key.contains(&q)).map(|(_, place)| place.clone()).collect();
         if !self.config.search_url.is_empty() {
             // Bias by area, not exact position, so the cache is shared by everyone nearby.
             let bias = near.map(|(lat, lon)| (lat.round(), lon.round()));

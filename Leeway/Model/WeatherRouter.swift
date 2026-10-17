@@ -111,7 +111,8 @@ nonisolated enum WeatherRouter {
             for i in front {
                 let node = nodes[i]
                 let distance = Geo.distanceNM(node.coordinate, goal)
-                let speed = boatSpeed(heading: Geo.bearing(node.coordinate, goal), at: node, boat: boat, wind: wind)
+                let speed = boatSpeed(heading: Geo.bearing(node.coordinate, goal),
+                                      wind: wind.wind(at: node.coordinate, time: node.time), boat: boat)
                 guard speed > 0.1, distance <= speed * dt * 1.0001, grid.isClear(node.coordinate, goal) else { continue }
                 let arrival = node.time.addingTimeInterval(distance / speed * 3600)
                 if best.map({ arrival < $0.arrival }) ?? true { best = (i, arrival) }
@@ -122,8 +123,10 @@ nonisolated enum WeatherRouter {
             var keep = [Int: (node: Node, reach: Double)]()
             for i in front {
                 let node = nodes[i]
+                // The wind is the same on every heading from here: look it up once.
+                let here = wind.wind(at: node.coordinate, time: node.time)
                 for heading in headings {
-                    let speed = boatSpeed(heading: heading, at: node, boat: boat, wind: wind)
+                    let speed = boatSpeed(heading: heading, wind: here, boat: boat)
                     guard speed > 0.1 else { continue }
                     let next = Geo.destination(from: node.coordinate, bearing: heading, distanceNM: speed * dt)
                     // Don't fan out far beyond the finish.
@@ -157,9 +160,9 @@ nonisolated enum WeatherRouter {
 
     /// Boat speed on a heading from a node: under sail by the polar, or motoring when that's faster
     /// than the engine threshold allows.
-    private static func boatSpeed(heading: Double, at node: Node, boat: BoatProfile, wind: WindField) -> Double {
+    private static func boatSpeed(heading: Double, wind w: (speed: Double, from: Double)?, boat: BoatProfile) -> Double {
         if boat.propulsion == .motor { return boat.motorSpeed }
-        guard let w = wind.wind(at: node.coordinate, time: node.time) else { return boat.motorSpeed }
+        guard let w else { return boat.motorSpeed }
         let twa = abs(Geo.angleDiff(w.from, heading))
         // Motor when sailing the course (tacking included) is too slow, as the passage simulator does.
         // Otherwise the heading is sailed as is: 0 inside the no-go zone, so the router must tack.
