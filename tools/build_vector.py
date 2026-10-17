@@ -142,8 +142,9 @@ def soundings(meta, code):
     taken = np.zeros_like(code, dtype=bool)
     # (spacing in grid cells, first zoom, deepest metres shown). The grid is about 67 m a cell, finer
     # than the source data (EMODnet, about 115 m), so 2 cells is as dense as the data can justify.
-    # Deep water gets fewer figures (the grid stores up to 127 m): nobody steers by them, and the file stays small.
-    for spacing, minzoom, deepest in ((32, 9, 127), (16, 10, 127), (8, 11, 60), (4, 12, 40), (3, 13, 35), (2, 14, 30)):
+    # Sparse when zoomed out, so the chart stays readable; the dense lattice only at the closest zoom and
+    # only in shallow water, where a skipper reads depths.
+    for spacing, minzoom, deepest in ((48, 11, 127), (24, 12, 127), (10, 13, 50), (4, 14, 30)):
         rr, cc = np.mgrid[spacing // 2:rows:spacing, spacing // 2:cols:spacing]
         rr, cc = rr.ravel(), cc.ravel()
         values = code[rr, cc]
