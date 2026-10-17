@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seadata</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1c2330; --muted: #5b6575; --bg: #f6f3ea; --code: #ebe5d3; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e6e8ec; --muted: #9aa3b2; --bg: #12161d; --code: #1d2430; } }
+  body { font: 16px/1.5 -apple-system, system-ui, sans-serif; color: var(--fg); background: var(--bg); max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+  h1 { margin: 0 0 4px; } p { color: var(--muted); }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: 14px; }
+  li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<h1>seadata</h1>
+<p>Data server for the Leeway sailing app. Forecasts, seamarks, chart packs and AIS in one place, cached.</p>
+<ul>
+  <li><code>GET /v1/info</code>: what this server offers</li>
+  <li><code>GET /v1/forecast?points=45.32,14.44;44.53,14.47</code>: hourly wind (finest model per hour), gusts, waves, swell, currents, weather</li>
+  <li><code>GET /v1/wind-grid?west=13&amp;south=44&amp;east=15&amp;north=46</code>: wind on a grid for map arrows</li>
+  <li><code>GET /v1/tiles/seamark/{z}/{x}/{y}.png</code>: OpenSeaMap seamark tiles</li>
+  <li><code>GET /v1/charts</code> and <code>/v1/charts/files/{name}</code>: offline chart packs</li>
+  <li><code>GET /v1/ais?west=13&amp;south=44&amp;east=15&amp;north=46</code>: live vessels (if configured)</li>
+</ul>
+<p>Weather data by Open-Meteo.com (CC BY 4.0). Seamarks © OpenSeaMap. Charts: EMODnet Bathymetry, © OpenStreetMap contributors. Not for navigation.</p>
+</body>
+</html>
