@@ -158,9 +158,14 @@ final class AppModel {
     private(set) var focus: Focus?
     /// The chart's colours now: the setting, or the light at the map's centre.
     private(set) var palette = ChartPalette.day
-    /// Range and bearing tool: on, and the points tapped so far.
+    /// Measure tool (like Google Earth's): a path of points placed under the crosshair.
     var isMeasuring = false { didSet { if !isMeasuring { measurePoints = [] } } }
     private(set) var measurePoints: [CLLocationCoordinate2D] = []
+    /// Bumped to drop a point at the map's centre; the map answers with its exact centre.
+    private(set) var measureAddRequest = 0
+
+    /// Length of the measured path, NM.
+    var measureDistance: Double { Geo.length(of: measurePoints) }
     /// Forecast at the boat's position (or Rijeka before the first GPS fix).
     private(set) var localForecast: RouteForecast?
     private var localForecastFetched: (coordinate: CLLocationCoordinate2D, at: Date)?
@@ -451,14 +456,29 @@ final class AppModel {
     }
 
     func addMeasurePoint(_ coordinate: CLLocationCoordinate2D) {
-        // A third tap starts a new measurement.
-        measurePoints = measurePoints.count >= 2 ? [coordinate] : measurePoints + [coordinate]
+        measurePoints.append(coordinate)
     }
 
-    /// From the boat: the first point is the boat's position.
+    /// Asks the map to put a point under the crosshair.
+    func addMeasurePointAtCrosshair() {
+        measureAddRequest += 1
+    }
+
+    func undoMeasurePoint() {
+        _ = measurePoints.popLast()
+    }
+
+    func clearMeasure() {
+        measurePoints = []
+    }
+
+    /// Starts (or continues) the path at the boat's position.
     func measureFromBoat() {
         isMeasuring = true
-        measurePoints = location.location.map { [$0.coordinate] } ?? []
+        if let here = location.location?.coordinate {
+            measurePoints.append(here)
+            centre(on: here, zoom: max(camera.zoom, 12))
+        }
     }
 
     func addMark(at coordinate: CLLocationCoordinate2D, name: String? = nil, symbol: String = "mappin") {

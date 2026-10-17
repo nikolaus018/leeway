@@ -87,6 +87,8 @@ struct ChartTabView: View {
             marks: model.marks,
             radar: model.radarFrame,
             measure: model.measurePoints,
+            measureCursor: model.isMeasuring ? model.camera.center : nil,
+            measureAddRequest: model.measureAddRequest,
             inspected: model.inspection?.coordinate,
             showGrid: model.showGrid,
             isEditing: model.isEditing,
@@ -114,6 +116,9 @@ struct ChartTabView: View {
         .ignoresSafeArea()
         .overlay {
             if model.showGrid { GridLabels(camera: model.camera) }
+        }
+        .overlay {
+            if model.isMeasuring { Crosshair().ignoresSafeArea().allowsHitTesting(false).transition(.opacity) }
         }
         .overlay(alignment: .top) {
             TopChrome(showingLayers: $showingLayers, showingSearch: $showingSearch)

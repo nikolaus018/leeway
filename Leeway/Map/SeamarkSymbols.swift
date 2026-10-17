@@ -14,7 +14,7 @@ enum SeamarkSymbols {
         case "vessel-moving": return vessel(moving: true)
         case "vessel-stopped": return vessel(moving: false)
         case "inspect": return inspect()
-        case "measure-end": return dot(.systemPink, size: 12)
+        case "measure-end": return dot(.white, size: 12, ring: UIColor(white: 0.1, alpha: 0.9))
         case "anchor-mark": return badge("⚓︎", fill: .systemPurple, size: 30)
         case "anchor-alarm": return badge("⚓︎", fill: .systemRed, size: 30)
         case "mob-mark": return badge("MOB", fill: .systemRed, size: 40)
@@ -269,12 +269,12 @@ enum SeamarkSymbols {
         return symbol?.withTintColor(.systemRed, renderingMode: .alwaysOriginal) ?? dot(.systemRed, size: 10)
     }
 
-    private static func dot(_ colour: UIColor, size: CGFloat) -> UIImage {
+    private static func dot(_ colour: UIColor, size: CGFloat, ring: UIColor = .white) -> UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: size + 4, height: size + 4)).image { _ in
             let p = UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: size, height: size))
             colour.setFill()
             p.fill()
-            UIColor.white.setStroke()
+            ring.setStroke()
             p.lineWidth = 2
             p.stroke()
         }

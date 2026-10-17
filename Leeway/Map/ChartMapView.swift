@@ -17,6 +17,9 @@ struct ChartMapView: UIViewRepresentable {
     var marks: [UserMark]
     var radar: RadarFrame?
     var measure: [CLLocationCoordinate2D]
+    /// While measuring: the map's centre, where the next point would go.
+    var measureCursor: CLLocationCoordinate2D?
+    var measureAddRequest: Int
     var inspected: CLLocationCoordinate2D?
     var showGrid: Bool
     var isEditing: Bool
@@ -93,6 +96,10 @@ struct ChartMapView: UIViewRepresentable {
             c.lastNorthRequest = northRequest
             map.resetNorth()
         }
+        if c.lastMeasureRequest != measureAddRequest {
+            c.lastMeasureRequest = measureAddRequest
+            onMeasure(map.centerCoordinate)
+        }
         if c.lastFitRequest != fitRouteRequest {
             c.lastFitRequest = fitRouteRequest
             c.fitRoute(on: map)
@@ -125,6 +132,7 @@ struct ChartMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: ChartMapView
         var lastFitRequest = 0
+        var lastMeasureRequest = 0
         var lastNorthRequest = 0
         var lastFocus = 0
         private var loadedStyle: ChartStyle?
@@ -193,7 +201,10 @@ struct ChartMapView: UIViewRepresentable {
             set(.marks, key: p.marks, on: style) {
                 p.marks.map { point($0.coordinate, ["name": $0.name, "icon": "mark-\($0.symbol)", "id": $0.id.uuidString]) }
             }
-            set(.measure, key: p.measure.map { "\($0.latitude),\($0.longitude)" }, on: style) { measureFeatures(p.measure) }
+            let cursor = p.measureCursor.map { "\(Int($0.latitude * 1e5)),\(Int($0.longitude * 1e5))" } ?? ""
+            set(.measure, key: p.measure.map { "\($0.latitude),\($0.longitude)" } + [cursor], on: style) {
+                measureFeatures(p.measure, cursor: p.measureCursor)
+            }
             set(.inspect, key: p.inspected.map { "\($0.latitude),\($0.longitude)" } ?? "", on: style) {
                 p.inspected.map { [point($0, [:])] } ?? []
             }
@@ -348,7 +359,10 @@ struct ChartMapView: UIViewRepresentable {
             if parent.showGrid { camera.latitudeLabels = gridLabels.lat; camera.longitudeLabels = gridLabels.lon }
             let scaleChanged = abs(camera.metresPerPoint - lastCamera.metresPerPoint) > lastCamera.metresPerPoint * 0.02
             let headingChanged = abs(camera.heading - lastCamera.heading) > 1
-            guard force || scaleChanged || headingChanged || camera.latitudeLabels != lastCamera.latitudeLabels
+            // The crosshair follows the map's centre while measuring.
+            let centreMoved = parent.isMeasuring && (camera.center.latitude != lastCamera.center.latitude
+                                                    || camera.center.longitude != lastCamera.center.longitude)
+            guard force || scaleChanged || headingChanged || centreMoved || camera.latitudeLabels != lastCamera.latitudeLabels
                     || camera.longitudeLabels != lastCamera.longitudeLabels else { return }
             lastCamera = camera
             parent.onCameraChange(camera)
@@ -421,10 +435,8 @@ struct ChartMapView: UIViewRepresentable {
                 parent.onAddWaypoint(coordinate)
                 return
             }
-            if parent.isMeasuring {
-                parent.onMeasure(coordinate)
-                return
-            }
+            // Measuring places points under the crosshair, not by tapping.
+            if parent.isMeasuring { return }
             let h = hit(at: point, coordinate: coordinate, on: map)
             if h.mmsi != nil || h.markID != nil || h.seamark != nil {
                 parent.onInspect(h)
@@ -616,17 +628,27 @@ private func underwayFeatures(_ state: UnderwayMapState) -> [MLNShape] {
     return features
 }
 
-private func measureFeatures(_ points: [CLLocationCoordinate2D]) -> [MLNShape] {
-    guard let first = points.first else { return [] }
-    var features: [MLNShape] = [point(first, ["text": ""])]
-    if points.count >= 2, let last = points.last {
-        features.append(polyline(points, [:]))
-        let distance = Geo.distanceNM(first, last)
-        let text = String(format: "%03.0f° · %@", Geo.bearing(first, last),
-                          distance < 0.3 ? "\(Int((distance * 1852).rounded())) m" : String(format: "%.2f NM", distance))
-        features.append(point(last, ["text": text]))
+/// The measured path: a solid line, a dot at each point, a distance on every leg, and a dashed
+/// leg from the last point to the crosshair.
+private func measureFeatures(_ points: [CLLocationCoordinate2D], cursor: CLLocationCoordinate2D?) -> [MLNShape] {
+    func label(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> MLNShape {
+        point(Geo.interpolate(a, b, fraction: 0.5), ["text": formatDistance(Geo.distanceNM(a, b))])
     }
+    var features: [MLNShape] = []
+    if points.count >= 2 {
+        features.append(polyline(points, ["live": false]))
+        for (a, b) in zip(points, points.dropFirst()) { features.append(label(a, b)) }
+    }
+    if let last = points.last, let cursor, Geo.distanceNM(last, cursor) > 0.001 {
+        features.append(polyline([last, cursor], ["live": true]))
+        features.append(label(last, cursor))
+    }
+    for p in points { features.append(point(p, ["vertex": true])) }
     return features
+}
+
+func formatDistance(_ nm: Double) -> String {
+    nm < 0.3 ? "\(Int((nm * 1852).rounded())) m" : String(format: "%.2f NM", nm)
 }
 
 // MARK: - Keys for change detection

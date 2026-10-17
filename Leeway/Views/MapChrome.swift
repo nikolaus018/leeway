@@ -33,10 +33,7 @@ struct TopChrome: View {
                 } else if model.isEditing {
                     EditingBanner()
                         .transition(.move(edge: .top).combined(with: .opacity))
-                } else if model.isMeasuring {
-                    MeasureBanner()
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                } else if model.location.location != nil {
+                } else if model.location.location != nil && !model.isMeasuring {
                     InstrumentStrip()
                         .transition(.opacity)
                 }
@@ -238,38 +235,72 @@ struct EditingBanner: View {
     }
 }
 
-struct MeasureBanner: View {
+/// Where the next measure point goes: a fixed crosshair over the middle of the map.
+struct Crosshair: View {
+    var body: some View {
+        ZStack {
+            Circle().stroke(.white, lineWidth: 2).frame(width: 22, height: 22)
+            Rectangle().fill(.white).frame(width: 2, height: 10).offset(y: -19)
+            Rectangle().fill(.white).frame(width: 2, height: 10).offset(y: 19)
+            Rectangle().fill(.white).frame(width: 10, height: 2).offset(x: -19)
+            Rectangle().fill(.white).frame(width: 10, height: 2).offset(x: 19)
+        }
+        .shadow(color: .black.opacity(0.6), radius: 2)
+    }
+}
+
+/// The measure tool's panel, as in Google Earth: the path's length, undo and clear, "Add point"
+/// for the crosshair, and close.
+struct MeasureCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "ruler")
-                .foregroundStyle(.pink)
-            Text(text)
-                .font(.footnote.weight(.medium).monospacedDigit())
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 4)
-            if model.location.location != nil {
-                Button("From boat", systemImage: "location.fill") { model.measureFromBoat() }
+        let points = model.measurePoints
+        VStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(points.count >= 2 ? formatDistance(model.measureDistance) : "Measure")
+                        .font(.title2.weight(.semibold).monospacedDigit())
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                Spacer(minLength: 8)
+                Button("Close", systemImage: "xmark") { model.isMeasuring = false }
                     .labelStyle(.iconOnly)
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
             }
-            Button("Done") { model.isMeasuring = false }
-                .buttonStyle(.glassProminent)
+            HStack(spacing: 10) {
+                Button("Undo", systemImage: "arrow.uturn.backward") { model.undoMeasurePoint() }
+                    .disabled(points.isEmpty)
+                Button("Clear", systemImage: "trash") { model.clearMeasure() }
+                    .disabled(points.isEmpty)
+                if model.location.location != nil {
+                    Button("My position", systemImage: "location.fill") { model.measureFromBoat() }
+                }
+                Spacer(minLength: 0)
+                Button("Add point", systemImage: "plus") { model.addMeasurePointAtCrosshair() }
+                    .buttonStyle(.glassProminent)
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 6)
-        .padding(.vertical, 6)
-        .catchesTouches(cornerRadius: 22)
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .padding(14)
+        .catchesTouches(cornerRadius: 24)
+        .glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 
-    private var text: String {
+    private var hint: String {
         let p = model.measurePoints
-        guard let first = p.first else { return "Tap a point to measure from" }
-        guard p.count >= 2, let last = p.last else { return "Tap where to measure to" }
-        let d = Geo.distanceNM(first, last)
-        let distance = d < 0.3 ? "\(Int((d * 1852).rounded())) m" : String(format: "%.2f NM", d)
-        return String(format: "%03.0f° · ", Geo.bearing(first, last)) + distance
+        guard let last = p.last else { return "Move the map to put the crosshair on the start, then add a point" }
+        let cursor = model.camera.center
+        let bearing = String(format: "%03.0f°", Geo.bearing(last, cursor))
+        let leg = formatDistance(Geo.distanceNM(last, cursor))
+        return p.count == 1 ? "To crosshair: \(bearing) · \(leg)" : "\(p.count) points · to crosshair: \(bearing) · \(leg)"
     }
 }
 
@@ -362,7 +393,9 @@ struct BottomChrome: View {
                     } else {
                         InspectorCard(inspection: inspection)
                     }
-                } else if !model.route.waypoints.isEmpty, !model.underway.isNavigating, !model.isMeasuring {
+                } else if model.isMeasuring {
+                    MeasureCard()
+                } else if !model.route.waypoints.isEmpty, !model.underway.isNavigating {
                     RouteCard(openDetails: { model.selectedTab = .routes })
                 }
             }

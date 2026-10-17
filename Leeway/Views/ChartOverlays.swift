@@ -213,6 +213,7 @@ struct InspectorCard: View {
             Button("Measure", systemImage: "ruler") {
                 model.isMeasuring = true
                 model.addMeasurePoint(inspection.coordinate)
+                model.centre(on: inspection.coordinate, zoom: max(model.camera.zoom, 12))
                 model.inspection = nil
             }
         } close: {
