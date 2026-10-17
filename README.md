@@ -1,4 +1,20 @@
-# Leeway
+<h1 align="center">Leeway</h1>
+
+<p align="center">
+  <b>A native iOS chartplotter and passage planner with offline sea charts and land-avoiding routing.</b><br>
+  SwiftUI, MapLibre, iOS 26 (Liquid Glass) and a Rust data server. Eastern Adriatic charts built from open data.
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/chart-route.png" alt="Weather-routed passage in day colours" width="19%">
+  <img src="docs/screenshots/chart-kornati.png" alt="Kornati chart with seamarks, soundings and park boundaries" width="19%">
+  <img src="docs/screenshots/satellite.png" alt="Satellite base with chart overlay" width="19%">
+  <img src="docs/screenshots/night.png" alt="Night colours" width="19%">
+  <img src="docs/screenshots/weather.png" alt="Wind and tide forecast" width="19%">
+</p>
+<p align="center"><sub>A weather-routed passage, the Kornati chart, satellite with the chart on top, night colours, and the wind and tide forecast.</sub></p>
+
+
 
 A native iOS chartplotter and passage planner in the spirit of savvy navvy and Garmin plotters: SwiftUI, MapLibre,
 iOS 26 (Liquid Glass). One nautical chart for the whole world, with detailed offline charts for the **eastern Adriatic**
