@@ -1,0 +1,57 @@
+# Generates Leeway.xcodeproj from project.yml (XcodeGen), builds the app for the simulator,
+# and commits the project back when it changed, so a plain checkout opens in Xcode.
+name: iOS
+
+on:
+  push:
+    branches-ignore: [gh-pages]
+    paths: [project.yml, "Leeway/**", "LeewayWidgets/**", "Shared/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the newest Xcode
+        run: |
+          xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -project Leeway.xcodeproj -scheme Leeway \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log | grep -E "error:|warning: .*Swift|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+      - name: Commit the generated project
+        if: always() && github.ref_type == 'branch'
+        run: |
+          git add -f Leeway.xcodeproj
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Regenerate Leeway.xcodeproj from project.yml"
+          git push
