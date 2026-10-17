@@ -47,6 +47,8 @@ struct ChartMapView: UIViewRepresentable {
         map.logoView.isHidden = true
         map.attributionButton.isHidden = true
         map.scaleBar.isHidden = true
+        // No twisting by hand; heading-up and course-up tracking still turn the map.
+        map.allowsRotating = false
         map.maximumZoomLevel = 18
         map.minimumZoomLevel = 1.5
         map.automaticallyAdjustsContentInset = false
