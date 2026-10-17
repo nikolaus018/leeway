@@ -105,6 +105,7 @@ final class AppModel {
             routeChanged()
         }
         location.onUpdate = { [weak self] fix in self?.underway.update(with: fix) }
+        underway.boatName = boat.name
         syncUnderway()
         // Picking up where we left off (navigating, at anchor, MOB): show the boat.
         if underway.needsBackground { tracking = .follow }

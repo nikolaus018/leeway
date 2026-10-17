@@ -75,6 +75,8 @@ final class Underway {
 
     let alarm = AlarmPlayer()
     private var lastFix: CLLocation?
+    private let liveActivity = LiveActivityController()
+    var boatName = "My Boat"
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "underway"),
@@ -108,6 +110,7 @@ final class Underway {
         navigation = nil
         readout = nil
         arrived = false
+        publish()
     }
 
     func skipWaypoint(by step: Int) {
@@ -129,6 +132,7 @@ final class Underway {
         mobBearing = nil
         mobDistance = nil
         alarm.stop()
+        publish()
     }
 
     func dropAnchor(radius: Double) {
@@ -152,6 +156,7 @@ final class Underway {
         alarm.stop()
         if anchorAlarm { snooze = (anchorDistance ?? 0, Date.now.addingTimeInterval(300)) }
         anchorAlarm = false
+        publish()
     }
 
     func liftAnchor() {
@@ -159,11 +164,17 @@ final class Underway {
         anchorDistance = nil
         swing = []
         silenceAnchorAlarm()
+        publish()
     }
 
     // MARK: Updates
 
     func update(with fix: CLLocation) {
+        updateState(with: fix)
+        publish()
+    }
+
+    private func updateState(with fix: CLLocation) {
         lastFix = fix
         let here = fix.coordinate
         let sog = fix.speed >= 0 ? fix.speed * 3600 / 1852 : nil
@@ -237,6 +248,48 @@ final class Underway {
             etaFinish: sog.flatMap { $0 > 0.5 ? Date.now.addingTimeInterval(remaining / $0 * 3600) : nil },
             offCourse: offCourse
         )
+    }
+
+    // MARK: Live Activity
+
+    /// MOB takes priority over navigation, navigation over the anchor watch.
+    private var activityState: UnderwayAttributes.ContentState? {
+        if let mob {
+            var state = UnderwayAttributes.ContentState(kind: .mob)
+            state.bearing = mobBearing
+            state.distance = mobDistance
+            state.mobTime = mob.time
+            return state
+        }
+        if navigation != nil {
+            var state = UnderwayAttributes.ContentState(kind: .navigation)
+            state.arrived = arrived
+            if let r = readout {
+                state.nextName = r.nextName
+                // Rounded so tiny GPS wobbles don't count as changes.
+                state.bearing = r.bearing.rounded()
+                state.distance = (r.distance * 100).rounded() / 100
+                state.crossTrack = (r.crossTrack * 200).rounded() / 200
+                state.etaNext = r.etaNext.map { Date(timeIntervalSince1970: ($0.timeIntervalSince1970 / 60).rounded() * 60) }
+                state.remaining = (r.remaining * 10).rounded() / 10
+                state.etaFinish = r.etaFinish.map { Date(timeIntervalSince1970: ($0.timeIntervalSince1970 / 60).rounded() * 60) }
+                state.sog = r.sog.map { ($0 * 10).rounded() / 10 }
+            }
+            return state
+        }
+        if let anchor {
+            var state = UnderwayAttributes.ContentState(kind: .anchor)
+            state.anchorDistance = anchorDistance?.rounded()
+            state.anchorRadius = anchor.radius
+            state.anchorMax = anchorMaxDistance.rounded()
+            state.anchorAlarm = anchorAlarm
+            return state
+        }
+        return nil
+    }
+
+    private func publish() {
+        liveActivity.sync(activityState, boatName: boatName)
     }
 
     /// Waypoints after the active leg's end, for drawing the rest of the route.

@@ -24,6 +24,8 @@
 	<string>Leeway keeps recording your track while the screen is off.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Leeway shows your position on the chart and records your track.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

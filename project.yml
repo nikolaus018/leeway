@@ -21,6 +21,9 @@ targets:
       - path: Leeway/Charts
         type: folder
         buildPhase: resources
+      - path: Shared
+    dependencies:
+      - target: LeewayWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway
@@ -42,7 +45,27 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
         UIBackgroundModes: [location]
+        NSSupportsLiveActivities: true
         NSLocationWhenInUseUsageDescription: Leeway shows your position on the chart and records your track.
         NSLocationAlwaysAndWhenInUseUsageDescription: Leeway keeps recording your track while the screen is off.
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+  LeewayWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LeewayWidgets
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway.widgets
+        DEVELOPMENT_TEAM: C5MSK2XBMK
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+    info:
+      path: LeewayWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Leeway
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
