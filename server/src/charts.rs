@@ -1,9 +1,16 @@
 //! Offline chart packs (built by `tools/build_region.py`) for the app to download, so charts can be
 //! updated or added without an app release.
 
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Mutex,
+    time::SystemTime,
+};
 
 use serde::{Deserialize, Serialize};
+
+use crate::http::{fnv1a, FNV_OFFSET};
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -35,7 +42,33 @@ struct Meta {
     attribution: String,
 }
 
-/// Every complete pack in `dir`: a `.json` with its `.depth` grid (the `.land` coastline is optional).
+/// Pack files, in download order. The `.pmtiles` vector chart is optional (newer packs).
+const EXTENSIONS: [&str; 4] = ["json", "depth", "land", "pmtiles"];
+
+/// Content hash of a file, remembered by size and modification time so big packs aren't re-read
+/// on every listing.
+fn file_hash(path: &Path) -> Option<(u64, u64)> {
+    /// Path → (size, modified, hash).
+    type Known = HashMap<PathBuf, (u64, SystemTime, u64)>;
+    static HASHES: Mutex<Option<Known>> = Mutex::new(None);
+    let meta = std::fs::metadata(path).ok()?;
+    let (size, modified) = (meta.len(), meta.modified().ok()?);
+    if let Ok(mut guard) = HASHES.lock() {
+        if let Some(&(s, m, h)) = guard.get_or_insert_with(HashMap::new).get(path) {
+            if s == size && m == modified {
+                return Some((size, h));
+            }
+        }
+    }
+    let hash = fnv1a(FNV_OFFSET, &std::fs::read(path).ok()?);
+    if let Ok(mut guard) = HASHES.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(path.to_path_buf(), (size, modified, hash));
+    }
+    Some((size, hash))
+}
+
+/// Every complete pack in `dir`: a `.json` with its `.depth` grid (the `.land` coastline and the
+/// `.pmtiles` vector chart are optional).
 pub fn list(dir: &Path) -> Vec<ChartPack> {
     let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
     let mut packs: Vec<ChartPack> = entries
@@ -47,10 +80,10 @@ pub fn list(dir: &Path) -> Vec<ChartPack> {
             let stem = json.file_stem()?.to_str()?.to_string();
             let mut files = Vec::new();
             let (mut size, mut hash) = (0u64, FNV_OFFSET);
-            for ext in ["json", "depth", "land"] {
-                let Ok(data) = std::fs::read(dir.join(format!("{stem}.{ext}"))) else { continue };
-                size += data.len() as u64;
-                hash = fnv1a(hash, &data);
+            for ext in EXTENSIONS {
+                let Some((bytes, file_hash)) = file_hash(&dir.join(format!("{stem}.{ext}"))) else { continue };
+                size += bytes;
+                hash = fnv1a(hash, &file_hash.to_le_bytes());
                 files.push(format!("{stem}.{ext}"));
             }
             let version = format!("{hash:016x}");
@@ -72,17 +105,6 @@ pub fn list(dir: &Path) -> Vec<ChartPack> {
     packs
 }
 
-const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-
-/// FNV-1a: stable across builds, unlike `std`'s hasher, so redeploying doesn't trigger downloads.
-fn fnv1a(mut hash: u64, data: &[u8]) -> u64 {
-    for &byte in data {
-        hash ^= byte as u64;
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,6 +118,7 @@ mod tests {
         )
         .unwrap();
         std::fs::write(dir.path().join("kvarner.depth"), [0u8; 10]).unwrap();
+        std::fs::write(dir.path().join("kvarner.pmtiles"), [1u8; 10]).unwrap();
         std::fs::write(
             dir.path().join("broken.json"),
             r#"{"id":"broken","name":"B","west":0,"south":0,"east":1,"north":1}"#,
@@ -103,7 +126,11 @@ mod tests {
         .unwrap();
         let packs = list(dir.path());
         assert_eq!(packs.len(), 1);
-        assert_eq!(packs[0].files, vec!["kvarner.json", "kvarner.depth"]);
-        assert!(packs[0].size > 10);
+        assert_eq!(packs[0].files, vec!["kvarner.json", "kvarner.depth", "kvarner.pmtiles"]);
+        assert!(packs[0].size > 20);
+        let version = packs[0].version.clone();
+        assert_eq!(list(dir.path())[0].version, version, "stable");
+        std::fs::write(dir.path().join("kvarner.pmtiles"), [2u8; 11]).unwrap();
+        assert_ne!(list(dir.path())[0].version, version, "changes with content");
     }
 }

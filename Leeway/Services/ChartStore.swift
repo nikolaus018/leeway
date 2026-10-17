@@ -51,7 +51,7 @@ final class ChartStore {
         do {
             try fm.createDirectory(at: staging, withIntermediateDirectories: true)
             for name in files {
-                let (file, response) = try await URLSession.shared.download(from: server.chartFile(name))
+                let (file, response) = try await Seadata.session.download(from: server.chartFile(name, version: pack.version))
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 guard status == 200 else { throw Seadata.Failure.status(status, name) }
                 try fm.moveItem(at: file, to: staging.appending(path: name))

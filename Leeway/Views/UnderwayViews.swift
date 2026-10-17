@@ -1,81 +1,6 @@
 import CoreLocation
 import SwiftUI
 
-/// Following a route: next waypoint, cross-track error, speeds and ETAs.
-struct NavigationPanel: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let underway = model.underway
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Label(underway.readout?.nextName ?? "Waiting for GPS…", systemImage: "arrow.forward.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.tint)
-                Spacer(minLength: 4)
-                Button("Previous waypoint", systemImage: "chevron.backward") { underway.skipWaypoint(by: -1) }
-                    .labelStyle(.iconOnly)
-                Button("Next waypoint", systemImage: "chevron.forward") { underway.skipWaypoint(by: 1) }
-                    .labelStyle(.iconOnly)
-                Button("Stop navigation", systemImage: "xmark.circle.fill") { model.stopNavigation() }
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.secondary)
-            }
-            .font(.body.weight(.semibold))
-
-            if underway.arrived {
-                Label("Arrived", systemImage: "flag.checkered")
-                    .font(.title2.weight(.bold))
-            } else if let r = underway.readout {
-                HStack(spacing: 16) {
-                    Big(value: String(format: "%03.0f°", r.bearing), caption: "BTW")
-                    Big(value: distance(r.distance), caption: "DTW")
-                    Big(value: r.etaNext.map { $0.formatted(date: .omitted, time: .shortened) } ?? "–", caption: "ETA")
-                }
-                HStack(spacing: 6) {
-                    // Right of track means steer to port to get back, and vice versa.
-                    Image(systemName: r.crossTrack > 0 ? "arrow.left" : "arrow.right")
-                        .opacity(abs(r.crossTrack) < 0.005 ? 0 : 1)
-                    Text("XTE \(distance(abs(r.crossTrack))) \(r.crossTrack > 0 ? "R" : "L")")
-                        .monospacedDigit()
-                    if r.offCourse {
-                        Text(r.crossTrack > 0 ? "· steer to port" : "· steer to starboard")
-                    }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(r.offCourse ? Color.red : Color.secondary)
-                Text("SOG \(r.sog.map { String(format: "%.1f", $0) } ?? "–") · VMG \(r.vmg.map { String(format: "%.1f", $0) } ?? "–") kn · Finish \(String(format: "%.1f", r.remaining)) NM\(r.etaFinish.map { " at " + $0.formatted(date: .omitted, time: .shortened) } ?? "")")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: 420, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
-    }
-
-    /// NM, or metres when close.
-    private func distance(_ nm: Double) -> String {
-        nm < 0.3 ? "\(Int((nm * 1852).rounded())) m" : String(format: "%.1f NM", nm)
-    }
-}
-
-private struct Big: View {
-    var value: String
-    var caption: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(caption).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-            Text(value)
-                .font(.title2.weight(.bold).monospacedDigit())
-                .contentTransition(.numericText())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-    }
-}
-
 /// Man overboard: the way back to the casualty, impossible to overlook.
 struct MOBPanel: View {
     @Environment(AppModel.self) private var model
@@ -121,7 +46,8 @@ struct MOBPanel: View {
         }
         .foregroundStyle(.white)
         .padding(14)
-        .frame(maxWidth: 420, alignment: .leading)
+        .frame(maxWidth: 400, alignment: .leading)
+        .catchesTouches(cornerRadius: 24)
         .background(.red, in: .rect(cornerRadius: 24))
     }
 }
@@ -165,7 +91,8 @@ struct AnchorAlarmBanner: View {
         }
         .foregroundStyle(.white)
         .padding(14)
-        .frame(maxWidth: 420)
+        .frame(maxWidth: 400)
+        .catchesTouches(cornerRadius: 24)
         .background(.red, in: .rect(cornerRadius: 24))
     }
 }

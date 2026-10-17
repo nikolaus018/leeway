@@ -1,16 +1,10 @@
-import MapKit
+import MapLibre
 import SwiftUI
 
-/// MKMapView wrapper: SwiftUI's `Map` can't draw raster tile overlays, which the
-/// depth chart and the OpenSeaMap seamark layer need.
+/// The chart: a MapLibre map drawing `ChartStyle`, with the live layers (route, track, ships, wind,
+/// underway marks) fed into its GeoJSON sources and the waypoints as draggable pins.
 struct ChartMapView: UIViewRepresentable {
-    var base: MapBase
-    var showSeamarks: Bool
-    var showDepth: Bool
-    var showGrid: Bool
-    var regions: [ChartRegion]
-    var server: Seadata
-    var safetyDepth: Double
+    var style: ChartStyle
     var waypoints: [Waypoint]
     var path: [CLLocationCoordinate2D]
     var legHazards: [String?]
@@ -20,406 +14,407 @@ struct ChartMapView: UIViewRepresentable {
     var windArrows: [WindArrow]
     var vessels: [VesselMarker]
     var underway: UnderwayMapState
+    var marks: [UserMark]
+    var warnings: [WeatherWarning]
+    var radar: RadarFrame?
+    var measure: [CLLocationCoordinate2D]
     var inspected: CLLocationCoordinate2D?
+    var showGrid: Bool
     var isEditing: Bool
+    var isMeasuring: Bool
     var tracking: AppModel.UserTracking
+    var northRequest: Int
     var fitRouteRequest: Int
+    var focus: AppModel.Focus?
     var onAddWaypoint: (CLLocationCoordinate2D) -> Void
     var onMoveWaypoint: (Waypoint.ID, CLLocationCoordinate2D) -> Void
-    var onInspect: (CLLocationCoordinate2D, Seamark?) -> Void
-    var onSelectVessel: (Vessel) -> Void
+    var onInspect: (ChartHit?) -> Void
+    var onMeasure: (CLLocationCoordinate2D) -> Void
     var onRegionChange: (GeoBox) -> Void
     var onTrackingChange: (AppModel.UserTracking) -> Void
     var onCameraChange: (AppModel.MapCamera) -> Void
 
-    static let kvarner = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 45.2, longitude: 14.42),
-        span: MKCoordinateSpan(latitudeDelta: 0.45, longitudeDelta: 0.5)
-    )
-
-    private static var initialRegion: MKCoordinateRegion {
-        #if DEBUG
-        // `-debugCenter "lat,lon,span"` opens the map at a given spot (simulator testing).
-        if let spec = UserDefaults.standard.string(forKey: "debugCenter") {
-            let v = spec.split(separator: ",").compactMap { Double($0) }
-            if v.count == 3 {
-                return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: v[0], longitude: v[1]),
-                                          span: MKCoordinateSpan(latitudeDelta: v[2], longitudeDelta: v[2]))
-            }
-        }
-        #endif
-        return kvarner
-    }
+    static let home = CLLocationCoordinate2D(latitude: 45.2, longitude: 14.42)
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeUIView(context: Context) -> MKMapView {
-        let map = SizedMapView()
-        map.onFirstLayout = { [weak map] in map?.setRegion(Self.initialRegion, animated: false) }
-        map.delegate = context.coordinator
+    func makeUIView(context: Context) -> MLNMapView {
+        let map = MLNMapView(frame: .zero)
+        let c = context.coordinator
+        map.delegate = c
         map.showsUserLocation = true
-        map.showsCompass = false
-        map.showsScale = false
-        map.register(WaypointView.self, forAnnotationViewWithReuseIdentifier: WaypointView.reuseID)
-        map.register(ConditionsView.self, forAnnotationViewWithReuseIdentifier: ConditionsView.reuseID)
-        map.register(HarbourView.self, forAnnotationViewWithReuseIdentifier: HarbourView.reuseID)
-        map.register(InspectView.self, forAnnotationViewWithReuseIdentifier: InspectView.reuseID)
-        map.register(LegLabelView.self, forAnnotationViewWithReuseIdentifier: LegLabelView.reuseID)
-        map.register(BadgeView.self, forAnnotationViewWithReuseIdentifier: BadgeView.reuseID)
-        map.register(WindArrowView.self, forAnnotationViewWithReuseIdentifier: WindArrowView.reuseID)
-        map.register(VesselView.self, forAnnotationViewWithReuseIdentifier: VesselView.reuseID)
+        map.showsUserHeadingIndicator = true
+        map.compassView.compassVisibility = .hidden
+        map.logoView.isHidden = true
+        map.attributionButton.isHidden = true
+        map.scaleBar.isHidden = true
+        map.maximumZoomLevel = 18
+        map.minimumZoomLevel = 1.5
+        map.automaticallyAdjustsContentInset = false
+        map.preferredFramesPerSecond = .maximum
+        c.applyStyle(style, to: map)
 
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
-        tap.delegate = context.coordinator
-        map.addGestureRecognizer(tap)
-        let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pressed(_:)))
-        press.delegate = context.coordinator
-        map.addGestureRecognizer(press)
-
-        let coordinator = context.coordinator
-        map.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (map: MKMapView, _: UITraitCollection) in
-            coordinator.applyChart(to: map)
+        let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tapped(_:)))
+        let press = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.pressed(_:)))
+        for recognizer in map.gestureRecognizers ?? [] {
+            if let double = recognizer as? UITapGestureRecognizer, double.numberOfTapsRequired == 2 {
+                tap.require(toFail: double)
+            }
         }
+        tap.delegate = c
+        press.delegate = c
+        map.addGestureRecognizer(tap)
+        map.addGestureRecognizer(press)
         return map
     }
 
-    func updateUIView(_ map: MKMapView, context: Context) {
+    func updateUIView(_ map: MLNMapView, context: Context) {
         let c = context.coordinator
         c.parent = self
-        c.syncRegions(regions, on: map)
-        c.applyBase(base, to: map)
-        c.applyChart(to: map)
-        c.applySeamarks(showSeamarks, to: map)
+        c.applyStyle(style, to: map)
+        c.syncAll(on: map)
         c.syncWaypoints(waypoints, editing: isEditing, on: map)
-        c.syncPath(path, hazards: legHazards, on: map)
-        c.syncTrack(track, on: map)
-        c.syncSamples(samples, on: map)
-        c.syncLegLabels(legLabels, on: map)
-        c.syncWind(windArrows, on: map)
-        c.syncVessels(vessels, on: map)
-        c.syncUnderway(underway, on: map)
-        c.syncInspected(inspected, on: map)
         c.applyTracking(tracking, to: map)
+        if c.lastNorthRequest != northRequest {
+            c.lastNorthRequest = northRequest
+            map.resetNorth()
+        }
         if c.lastFitRequest != fitRouteRequest {
             c.lastFitRequest = fitRouteRequest
             c.fitRoute(on: map)
         }
+        if let focus, c.lastFocus != focus.id {
+            c.lastFocus = focus.id
+            map.setCenter(focus.coordinate, zoomLevel: max(map.zoomLevel, focus.zoom), animated: true)
+        }
+    }
+
+    /// Kvarner, or `-debugCenter "lat,lon,spanDegrees"` in debug builds (simulator testing).
+    fileprivate static var initialCamera: (CLLocationCoordinate2D, Double) {
+        #if DEBUG
+        if let spec = AppModel.debugArgument("debugCenter") {
+            let v = spec.split(separator: ",").compactMap { Double($0) }
+            if v.count == 3 {
+                return (CLLocationCoordinate2D(latitude: v[0], longitude: v[1]), log2(360 / max(v[2], 0.001)) + 0.5)
+            }
+        }
+        #endif
+        if let saved = UserDefaults.standard.array(forKey: "lastCamera") as? [Double], saved.count == 3,
+           saved[2] >= 3, abs(saved[0]) < 85, saved[0] != 0 || saved[1] != 0 {
+            return (CLLocationCoordinate2D(latitude: saved[0], longitude: saved[1]), saved[2])
+        }
+        return (home, 9.3)
     }
 
     // MARK: - Coordinator
 
-    final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: ChartMapView
         var lastFitRequest = 0
-
-        private var currentBase: MapBase?
-        private var seamarkOverlay: SeamarkTileOverlay?
-        private var seamarkKey: String?
-        private let graticule = GraticuleOverlay()
-        private var chartOverlays: [ChartOverlay] = []
-        private var depthKey: String?
-        private var routeLines: [MKPolyline] = []
-        /// Manual-mode legs that cross land or shallows (MapKit's polyline factories can't be subclassed).
-        private var hazardLines: Set<ObjectIdentifier> = []
-        private var drawnPath: [Double] = []
-        private var drawnHazards: [Bool] = []
-        private var trackLine: MKPolyline?
-        private var trackCount = -1
-        private var drawnWaypoints: [Waypoint] = []
-        private var drawnEditing = false
-        private var drawnSampleTimes: [Date] = []
-        private var inspectAnnotation: InspectAnnotation?
-        var harbours: [SeamarkAnnotation] = []
-        private var harboursShown = false
-        private var loadedRegions: [ObjectIdentifier] = []
-
-        /// Charts arrive after launch (and again after a download); rebuild what depends on them.
-        func syncRegions(_ regions: [ChartRegion], on map: MKMapView) {
-            let ids = regions.map { ObjectIdentifier($0) }
-            guard ids != loadedRegions else { return }
-            loadedRegions = ids
-            if harboursShown { map.removeAnnotations(harbours) }
-            harbours = regions.flatMap { $0.seamarks.filter(\.isHarbourLike) }.map(SeamarkAnnotation.init)
-            if harboursShown { map.addAnnotations(harbours) }
-            depthKey = nil
-            seamarkKey = nil
-        }
+        var lastNorthRequest = 0
+        var lastFocus = 0
+        private var loadedStyle: ChartStyle?
+        private var styleReady = false
         private var currentTracking = AppModel.UserTracking.none
 
         init(_ parent: ChartMapView) { self.parent = parent }
 
-        func applyBase(_ base: MapBase, to map: MKMapView) {
-            guard base != currentBase else { return }
-            currentBase = base
-            switch base {
-            case .chart:
-                let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
-                config.pointOfInterestFilter = MKPointOfInterestFilter(including: [.marina, .beach, .gasStation])
-                map.preferredConfiguration = config
-            case .satellite:
-                map.preferredConfiguration = MKHybridMapConfiguration(elevationStyle: .flat)
+        // MARK: Style
+
+        func applyStyle(_ style: ChartStyle, to map: MLNMapView) {
+            guard style != loadedStyle else { return }
+            loadedStyle = style
+            styleReady = false
+            do {
+                map.styleURL = try style.file()
+            } catch {
+                assertionFailure("chart style: \(error)")
             }
         }
 
-        /// The offline chart and the lat/lon grid; rebuilt when the look or the safety depth changes.
-        func applyChart(to map: MKMapView) {
-            let dark = map.traitCollection.userInterfaceStyle == .dark
-            let style = ChartStyle(paintLand: parent.base == .chart, dark: dark, safetyDepth: parent.safetyDepth, seamarks: parent.showSeamarks)
-            let key = parent.showDepth ? "\(style)" : "off"
-            if key != depthKey {
-                depthKey = key
-                map.removeOverlays(chartOverlays)
-                chartOverlays = parent.showDepth ? parent.regions.map { ChartOverlay(region: $0, style: style) } : []
-                for overlay in chartOverlays { map.insertOverlay(overlay, at: 0, level: .aboveRoads) }
+        private var cameraPlaced = false
+
+        func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            // Loading a style resets the camera to the style's; place it once the first one is in.
+            if !cameraPlaced {
+                cameraPlaced = true
+                let (center, zoom) = ChartMapView.initialCamera
+                mapView.setCenter(center, zoomLevel: zoom, animated: false)
             }
-            let gridShown = map.overlays.contains { $0 === graticule }
-            if parent.showGrid && !gridShown { map.addOverlay(graticule, level: .aboveRoads) }
-            if !parent.showGrid && gridShown { map.removeOverlay(graticule) }
-            if parent.showGrid, let renderer = map.renderer(for: graticule) as? GraticuleRenderer, renderer.dark != dark {
-                renderer.dark = dark
-                renderer.setNeedsDisplay()
+            styleReady = true
+            drawn = [:]
+            shownRadar = nil
+            syncAll(on: mapView)
+        }
+
+        /// Seamark symbols and markers are drawn the first time the map needs them.
+        func mapView(_ mapView: MLNMapView, didFailToLoadImage imageName: String) -> UIImage? {
+            SeamarkSymbols.image(named: imageName, palette: loadedStyle?.palette ?? .day)
+        }
+
+        // MARK: Live layers
+
+        /// What each live source currently shows, so unchanged data isn't re-sent.
+        private var drawn: [ChartStyle.Live: AnyHashable] = [:]
+
+        func syncAll(on map: MLNMapView) {
+            guard styleReady, let style = map.style else { return }
+            let p = parent
+            set(.route, key: RouteKey(path: p.path, hazards: p.legHazards.map { $0 != nil }), on: style) { routeFeatures(p.path, p.legHazards) }
+            set(.track, key: p.track.count, on: style) {
+                p.track.count >= 2 ? [polyline(p.track, [:])] : []
+            }
+            set(.samples, key: p.samples.map(\.time), on: style) {
+                p.samples.map { point($0.coordinate, ["speed": $0.conditions.windSpeed, "from": $0.conditions.windFrom]) }
+            }
+            set(.legs, key: p.legLabels.map(\.text) + p.legLabels.map { "\($0.latitude)" }, on: style) {
+                p.legLabels.map { point($0.coordinate, ["text": $0.text]) }
+            }
+            set(.wind, key: WindKey(arrows: p.windArrows), on: style) {
+                p.windArrows.map { point($0.coordinate, ["speed": $0.speed, "from": $0.from]) }
+            }
+            set(.ais, key: VesselKey(markers: p.vessels), on: style) { aisFeatures(p.vessels) }
+            set(.aisVectors, key: VesselKey(markers: p.vessels), on: style) { aisVectors(p.vessels) }
+            set(.underway, key: UnderwayKey(state: p.underway), on: style) { underwayFeatures(p.underway) }
+            set(.marks, key: p.marks, on: style) {
+                p.marks.map { point($0.coordinate, ["name": $0.name, "icon": "mark-\($0.symbol)", "id": $0.id.uuidString]) }
+            }
+            set(.warnings, key: p.warnings.map(\.id), on: style) { warningFeatures(p.warnings) }
+            set(.measure, key: p.measure.map { "\($0.latitude),\($0.longitude)" }, on: style) { measureFeatures(p.measure) }
+            set(.inspect, key: p.inspected.map { "\($0.latitude),\($0.longitude)" } ?? "", on: style) {
+                p.inspected.map { [point($0, [:])] } ?? []
+            }
+            if !p.showGrid { set(.grid, key: "off", on: style) { [] } } else if let region = lastRegion { updateGrid(map, region) }
+            syncRadar(p.radar, on: style)
+        }
+
+        // MARK: Radar
+
+        private var shownRadar: RadarFrame?
+
+        /// Rain radar is a raster source per frame: swapped when the frame changes.
+        private func syncRadar(_ frame: RadarFrame?, on style: MLNStyle) {
+            guard frame != shownRadar else { return }
+            shownRadar = frame
+            if let layer = style.layer(withIdentifier: "radar") { style.removeLayer(layer) }
+            if let source = style.source(withIdentifier: "radar") { style.removeSource(source) }
+            guard let frame else { return }
+            let source = MLNRasterTileSource(identifier: "radar", tileURLTemplates: [frame.tiles],
+                                             options: [.tileSize: 256, .maximumZoomLevel: 7, .attributionInfos: []])
+            style.addSource(source)
+            let layer = MLNRasterStyleLayer(identifier: "radar", source: source)
+            layer.rasterOpacity = NSExpression(forConstantValue: 0.6)
+            layer.rasterFadeDuration = NSExpression(forConstantValue: 0)
+            if let below = style.layer(withIdentifier: "live-warnings-fill") {
+                style.insertLayer(layer, below: below)
+            } else {
+                style.addLayer(layer)
             }
         }
 
-        /// OpenSeaMap symbols for areas without an offline chart (the chart draws its own seamarks).
-        func applySeamarks(_ show: Bool, to map: MKMapView) {
-            let key = show ? (parent.showDepth ? "outside-charts" : "everywhere") + parent.server.base.absoluteString : "off"
-            guard key != seamarkKey else { return }
-            seamarkKey = key
-            if let seamarkOverlay { map.removeOverlay(seamarkOverlay) }
-            seamarkOverlay = nil
-            guard show else { return }
-            let overlay = SeamarkTileOverlay(regions: parent.showDepth ? parent.regions : [], server: parent.server)
-            map.addOverlay(overlay, level: .aboveLabels)
-            seamarkOverlay = overlay
+        private func set(_ live: ChartStyle.Live, key: AnyHashable, on style: MLNStyle, features: () -> [MLNShape]) {
+            guard drawn[live] != key else { return }
+            drawn[live] = key
+            guard let source = style.source(withIdentifier: "live-\(live.rawValue)") as? MLNShapeSource else { return }
+            source.shape = MLNShapeCollectionFeature(shapes: features())
         }
 
-        func syncWaypoints(_ waypoints: [Waypoint], editing: Bool, on map: MKMapView) {
+        // MARK: Waypoints
+
+        private var drawnWaypoints: [Waypoint] = []
+        private var drawnEditing = false
+
+        func syncWaypoints(_ waypoints: [Waypoint], editing: Bool, on map: MLNMapView) {
             guard waypoints != drawnWaypoints || editing != drawnEditing else { return }
             let structureChanged = waypoints.map(\.id) != drawnWaypoints.map(\.id) || editing != drawnEditing
             drawnWaypoints = waypoints
             drawnEditing = editing
-
+            let current = (map.annotations ?? []).compactMap { $0 as? WaypointAnnotation }
             if structureChanged {
-                map.removeAnnotations(map.annotations.filter { $0 is WaypointAnnotation })
+                map.removeAnnotations(current)
                 map.addAnnotations(waypoints.enumerated().map { i, w in
-                    WaypointAnnotation(waypoint: w, index: i, count: waypoints.count)
+                    WaypointAnnotation(id: w.id, coordinate: w.coordinate, index: i, count: waypoints.count)
                 })
             } else {
                 // Only positions changed (a drag): move the pins in place so the drag isn't interrupted.
-                for case let annotation as WaypointAnnotation in map.annotations {
-                    if let w = waypoints.first(where: { $0.id == annotation.id }) {
-                        annotation.coordinate = w.coordinate
-                    }
+                for annotation in current {
+                    if let w = waypoints.first(where: { $0.id == annotation.id }) { annotation.coordinate = w.coordinate }
                 }
             }
         }
 
-        func syncPath(_ path: [CLLocationCoordinate2D], hazards: [String?], on map: MKMapView) {
-            let key = path.flatMap { [$0.latitude, $0.longitude] }
-            let hazardKey = hazards.map { $0 != nil }
-            guard key != drawnPath || hazardKey != drawnHazards else { return }
-            drawnPath = key
-            drawnHazards = hazardKey
-            map.removeOverlays(routeLines)
-            routeLines = []
-            hazardLines = []
-            guard path.count >= 2 else { return }
-            if hazardKey.contains(true), hazardKey.count == path.count - 1 {
-                // Manual route with problems: draw leg by leg so the bad ones stand out.
-                for (i, pair) in zip(path, path.dropFirst()).enumerated() {
-                    let line = MKGeodesicPolyline(coordinates: [pair.0, pair.1], count: 2)
-                    if hazardKey[i] { hazardLines.insert(ObjectIdentifier(line)) }
-                    routeLines.append(line)
-                }
-            } else {
-                routeLines = [MKPolyline(coordinates: path, count: path.count)]
+        func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            guard let waypoint = annotation as? WaypointAnnotation else { return nil }
+            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: WaypointPin.reuseID) as? WaypointPin)
+                ?? WaypointPin(reuseIdentifier: WaypointPin.reuseID)
+            view.configure(waypoint, editing: parent.isEditing)
+            view.onDragEnded = { [weak self] coordinate in
+                self?.parent.onMoveWaypoint(waypoint.id, coordinate)
             }
-            map.addOverlays(routeLines, level: .aboveLabels)
+            return view
         }
 
-        func syncTrack(_ track: [CLLocationCoordinate2D], on map: MKMapView) {
-            guard track.count != trackCount else { return }
-            trackCount = track.count
-            if let trackLine { map.removeOverlay(trackLine) }
-            trackLine = nil
-            if track.count >= 2 {
-                let line = MKPolyline(coordinates: track, count: track.count)
-                map.addOverlay(line, level: .aboveLabels)
-                trackLine = line
-            }
-        }
+        func mapView(_ mapView: MLNMapView, annotationCanShowCallout annotation: MLNAnnotation) -> Bool { false }
 
-        func syncSamples(_ samples: [PassageSample], on map: MKMapView) {
-            let key = samples.map(\.time)
-            guard key != drawnSampleTimes || samples.isEmpty != map.annotations.contains(where: { $0 is ConditionsAnnotation }) else { return }
-            drawnSampleTimes = key
-            map.removeAnnotations(map.annotations.filter { $0 is ConditionsAnnotation })
-            map.addAnnotations(samples.map(ConditionsAnnotation.init))
-        }
+        // MARK: Camera
 
-        private var drawnLegLabels: [LegAnnotationData] = []
-
-        // MARK: Live layers
-
-        private var drawnWind: [WindArrow] = []
-
-        func syncWind(_ arrows: [WindArrow], on map: MKMapView) {
-            guard arrows != drawnWind else { return }
-            drawnWind = arrows
-            map.removeAnnotations(map.annotations.filter { $0 is WindArrowAnnotation })
-            map.addAnnotations(arrows.map(WindArrowAnnotation.init))
-        }
-
-        private var vesselAnnotations: [Int: VesselAnnotation] = [:]
-
-        /// Ships move every few seconds: update pins in place rather than replacing them.
-        func syncVessels(_ markers: [VesselMarker], on map: MKMapView) {
-            let wanted = Dictionary(markers.map { ($0.vessel.mmsi, $0) }, uniquingKeysWith: { a, _ in a })
-            let gone = vesselAnnotations.filter { wanted[$0.key] == nil }
-            if !gone.isEmpty {
-                map.removeAnnotations(Array(gone.values))
-                gone.keys.forEach { vesselAnnotations[$0] = nil }
-            }
-            var added: [VesselAnnotation] = []
-            for (mmsi, marker) in wanted {
-                if let annotation = vesselAnnotations[mmsi] {
-                    guard annotation.marker != marker else { continue }
-                    annotation.marker = marker
-                    annotation.coordinate = marker.vessel.coordinate
-                    (map.view(for: annotation) as? VesselView)?.configure(marker)
-                } else {
-                    let annotation = VesselAnnotation(marker)
-                    vesselAnnotations[mmsi] = annotation
-                    added.append(annotation)
-                }
-            }
-            if !added.isEmpty { map.addAnnotations(added) }
-        }
-
-        // MARK: Underway
-
-        private enum LineStyle { case activeLeg, ahead, bearing, cog, mob, swing }
-        private var drawnUnderway = UnderwayMapState()
-        private var underwayOverlays: [MKOverlay] = []
-        private var underwayAnnotations: [MKAnnotation] = []
-        private var lineStyles: [ObjectIdentifier: LineStyle] = [:]
-        private var anchorAlarmShown = false
-        /// The planned route is already drawn when the planner still has it; otherwise draw what's left from navigation.
-        private var drawnPathIsEmpty: Bool { drawnPath.isEmpty }
-
-        func syncUnderway(_ state: UnderwayMapState, on map: MKMapView) {
-            guard state != drawnUnderway else { return }
-            let annotationsChanged = state.mob != drawnUnderway.mob || state.anchor != drawnUnderway.anchor
-                || state.anchorAlarm != drawnUnderway.anchorAlarm
-            drawnUnderway = state
-            map.removeOverlays(underwayOverlays)
-            underwayOverlays = []
-            lineStyles = [:]
-            anchorAlarmShown = state.anchorAlarm
-
-            func line(_ points: [CLLocationCoordinate2D], _ style: LineStyle) {
-                guard points.count >= 2 else { return }
-                let polyline = MKPolyline(coordinates: points, count: points.count)
-                lineStyles[ObjectIdentifier(polyline)] = style
-                underwayOverlays.append(polyline)
-            }
-            if state.ahead.count >= 2, state.activeLeg.isEmpty == false, drawnPathIsEmpty { line(state.ahead.map(\.coordinate), .ahead) }
-            if state.activeLeg.count == 2 { line(state.activeLeg.map(\.coordinate), .activeLeg) }
-            if let boat = state.boat {
-                if let next = state.next { line([boat.coordinate, next.coordinate], .bearing) }
-                if let mob = state.mob { line([boat.coordinate, mob.coordinate], .mob) }
-                // Where the boat will be in 6 minutes on its current course and speed.
-                if let cog = state.cog, let sog = state.sog, sog > 0.3 {
-                    line([boat.coordinate, Geo.destination(from: boat.coordinate, bearing: cog, distanceNM: sog / 10)], .cog)
-                }
-            }
-            if let anchor = state.anchor {
-                underwayOverlays.append(MKCircle(center: anchor.coordinate, radius: state.anchorRadius))
-                line(state.swing.map(\.coordinate), .swing)
-            }
-            map.addOverlays(underwayOverlays, level: .aboveLabels)
-
-            guard annotationsChanged else { return }
-            map.removeAnnotations(underwayAnnotations)
-            underwayAnnotations = []
-            if let anchor = state.anchor { underwayAnnotations.append(AnchorAnnotation(anchor.coordinate)) }
-            if let mob = state.mob { underwayAnnotations.append(MOBAnnotation(mob.coordinate)) }
-            map.addAnnotations(underwayAnnotations)
-        }
-
-        func syncLegLabels(_ labels: [LegAnnotationData], on map: MKMapView) {
-            guard labels != drawnLegLabels else { return }
-            drawnLegLabels = labels
-            map.removeAnnotations(map.annotations.filter { $0 is LegAnnotation })
-            map.addAnnotations(labels.map { LegAnnotation(text: $0.text, coordinate: $0.coordinate) })
-        }
-
-        func syncInspected(_ coordinate: CLLocationCoordinate2D?, on map: MKMapView) {
-            if let coordinate {
-                if let inspectAnnotation {
-                    inspectAnnotation.coordinate = coordinate
-                } else {
-                    let annotation = InspectAnnotation(coordinate)
-                    map.addAnnotation(annotation)
-                    inspectAnnotation = annotation
-                }
-            } else if let inspectAnnotation {
-                map.removeAnnotation(inspectAnnotation)
-                self.inspectAnnotation = nil
-            }
-        }
-
-        func applyTracking(_ tracking: AppModel.UserTracking, to map: MKMapView) {
+        func applyTracking(_ tracking: AppModel.UserTracking, to map: MLNMapView) {
             guard tracking != currentTracking else { return }
             currentTracking = tracking
-            let mode: MKUserTrackingMode = switch tracking {
+            let mode: MLNUserTrackingMode = switch tracking {
             case .none: .none
             case .follow: .follow
             case .heading: .followWithHeading
+            case .course: .followWithCourse
             }
-            map.setUserTrackingMode(mode, animated: true)
+            if mode == .none { map.resetNorth() }
+            map.setUserTrackingMode(mode, animated: true, completionHandler: nil)
         }
 
-        func fitRoute(on map: MKMapView) {
-            let rect = routeLines.reduce(MKMapRect.null) { $0.union($1.boundingMapRect) }
-            guard !rect.isNull else { return }
-            map.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 140, left: 50, bottom: 420, right: 70), animated: true)
+        func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
+            let tracking: AppModel.UserTracking = switch mode {
+            case .follow: .follow
+            case .followWithHeading: .heading
+            case .followWithCourse: .course
+            default: .none
+            }
+            guard tracking != currentTracking else { return }
+            currentTracking = tracking
+            DispatchQueue.main.async { self.parent.onTrackingChange(tracking) }
+        }
+
+        func fitRoute(on map: MLNMapView) {
+            let coordinates = parent.path.isEmpty ? parent.waypoints.map(\.coordinate) : parent.path
+            guard coordinates.count >= 2 else { return }
+            var bounds = MLNCoordinateBounds(sw: coordinates[0], ne: coordinates[0])
+            for c in coordinates {
+                bounds.sw.latitude = min(bounds.sw.latitude, c.latitude)
+                bounds.sw.longitude = min(bounds.sw.longitude, c.longitude)
+                bounds.ne.latitude = max(bounds.ne.latitude, c.latitude)
+                bounds.ne.longitude = max(bounds.ne.longitude, c.longitude)
+            }
+            map.setVisibleCoordinateBounds(bounds, edgePadding: UIEdgeInsets(top: 130, left: 50, bottom: 260, right: 70),
+                                           animated: true, completionHandler: nil)
+        }
+
+        private var lastRegion: MLNCoordinateBounds?
+        private var lastCamera = AppModel.MapCamera()
+        private var lastCameraUpdate = Date.distantPast
+
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            publishCamera(mapView, force: false)
+        }
+
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            publishCamera(mapView, force: true)
+            let b = mapView.visibleCoordinateBounds
+            lastRegion = b
+            if parent.showGrid { updateGrid(mapView, b) }
+            // Remember where the chart was, once it has been placed (before that it sits at 0°, 0°).
+            if cameraPlaced {
+                UserDefaults.standard.set([mapView.centerCoordinate.latitude, mapView.centerCoordinate.longitude, mapView.zoomLevel],
+                                          forKey: "lastCamera")
+            }
+            let box = GeoBox(west: max(-180, b.sw.longitude), south: max(-85, b.sw.latitude),
+                             east: min(180, b.ne.longitude), north: min(85, b.ne.latitude))
+            guard box.width > 0, box.height > 0 else { return }
+            // Layer fetches are model state; don't change it in the middle of a view update.
+            DispatchQueue.main.async { self.parent.onRegionChange(box) }
+        }
+
+        /// Scale bar, grid labels and the map's heading; throttled while the map moves.
+        private func publishCamera(_ map: MLNMapView, force: Bool) {
+            guard force || Date().timeIntervalSince(lastCameraUpdate) > 0.12 else { return }
+            lastCameraUpdate = Date()
+            guard map.bounds.width > 0 else { return }
+            var camera = AppModel.MapCamera()
+            camera.metresPerPoint = map.metersPerPoint(atLatitude: map.centerCoordinate.latitude)
+            camera.heading = map.direction
+            camera.center = map.centerCoordinate
+            camera.zoom = map.zoomLevel
+            if parent.showGrid { camera.latitudeLabels = gridLabels.lat; camera.longitudeLabels = gridLabels.lon }
+            let scaleChanged = abs(camera.metresPerPoint - lastCamera.metresPerPoint) > lastCamera.metresPerPoint * 0.02
+            let headingChanged = abs(camera.heading - lastCamera.heading) > 1
+            guard force || scaleChanged || headingChanged || camera.latitudeLabels != lastCamera.latitudeLabels
+                    || camera.longitudeLabels != lastCamera.longitudeLabels else { return }
+            lastCamera = camera
+            parent.onCameraChange(camera)
+        }
+
+        // MARK: Grid
+
+        private var gridLabels: (lat: [AppModel.MapCamera.Label], lon: [AppModel.MapCamera.Label]) = ([], [])
+
+        private func updateGrid(_ map: MLNMapView, _ b: MLNCoordinateBounds) {
+            guard let style = map.style else { return }
+            let span = b.ne.longitude - b.sw.longitude
+            guard span > 0 else { return }
+            let minutes = Graticule.step(pointsPerDegree: map.bounds.width / span)
+            let step = minutes / 60
+            var lines: [MLNShape] = []
+            var lat: [AppModel.MapCamera.Label] = [], lon: [AppModel.MapCamera.Label] = []
+            var x = (b.sw.longitude / step).rounded(.up) * step
+            while x <= b.ne.longitude, lines.count < 80 {
+                lines.append(polyline([CLLocationCoordinate2D(latitude: max(-85, b.sw.latitude - 1), longitude: x),
+                                       CLLocationCoordinate2D(latitude: min(85, b.ne.latitude + 1), longitude: x)], [:]))
+                let p = map.convert(CLLocationCoordinate2D(latitude: map.centerCoordinate.latitude, longitude: x), toPointTo: map)
+                lon.append(.init(position: p.x, text: Graticule.format(x, positive: "E", negative: "W", step: minutes)))
+                x += step
+            }
+            var y = (b.sw.latitude / step).rounded(.up) * step
+            while y <= b.ne.latitude, lines.count < 160 {
+                lines.append(polyline([CLLocationCoordinate2D(latitude: y, longitude: b.sw.longitude - 1),
+                                       CLLocationCoordinate2D(latitude: y, longitude: b.ne.longitude + 1)], [:]))
+                let p = map.convert(CLLocationCoordinate2D(latitude: y, longitude: map.centerCoordinate.longitude), toPointTo: map)
+                lat.append(.init(position: p.y, text: Graticule.format(y, positive: "N", negative: "S", step: minutes)))
+                y += step
+            }
+            gridLabels = (lat, lon)
+            drawn[.grid] = nil
+            set(.grid, key: "\(b.sw.latitude),\(b.sw.longitude),\(step)", on: style) { lines }
         }
 
         // MARK: Gestures
 
+        /// A long press ends with the finger lifting, which the tap recogniser also sees.
+        private var lastPress = Date.distantPast
+
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
-            guard let map = gesture.view as? MKMapView else { return }
+            guard let map = gesture.view as? MLNMapView, Date.now.timeIntervalSince(lastPress) > 0.5 else { return }
             let point = gesture.location(in: map)
             let coordinate = map.convert(point, toCoordinateFrom: map)
             if parent.isEditing {
                 parent.onAddWaypoint(coordinate)
                 return
             }
-            // Pick the closest charted object within a finger's reach, else just the spot.
-            var best: (Seamark, CGFloat)?
-            for region in parent.regions where region.contains(coordinate) {
-                for mark in region.seamarks {
-                    let p = map.convert(mark.coordinate, toPointTo: map)
-                    let d = hypot(p.x - point.x, p.y - point.y)
-                    if d < 26, d < (best?.1 ?? .infinity) { best = (mark, d) }
-                }
+            if parent.isMeasuring {
+                parent.onMeasure(coordinate)
+                return
             }
-            parent.onInspect(coordinate, best?.0)
+            let h = hit(at: point, coordinate: coordinate, on: map)
+            if h.mmsi != nil || h.markID != nil || h.seamark != nil {
+                parent.onInspect(h)
+            } else {
+                parent.onInspect(nil)
+            }
         }
 
         @objc func pressed(_ gesture: UILongPressGestureRecognizer) {
-            guard gesture.state == .began, !parent.isEditing, let map = gesture.view as? MKMapView else { return }
+            lastPress = .now
+            guard gesture.state == .began, !parent.isEditing, let map = gesture.view as? MLNMapView else { return }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            parent.onAddWaypoint(map.convert(gesture.location(in: map), toCoordinateFrom: map))
+            let point = gesture.location(in: map)
+            let coordinate = map.convert(point, toCoordinateFrom: map)
+            parent.onInspect(hit(at: point, coordinate: coordinate, on: map))
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            // Only touches on the map itself: not the controls and cards drawn over it.
+            guard let map = g.view, let touched = touch.view, touched.isDescendant(of: map) else { return false }
             // Let pins handle their own taps and drags.
             var view = touch.view
             while let v = view {
-                if v is MKAnnotationView { return false }
+                if v is MLNAnnotationView { return false }
                 view = v.superview
             }
             return true
@@ -429,226 +424,285 @@ struct ChartMapView: UIViewRepresentable {
             true
         }
 
-        // MARK: MKMapViewDelegate
-
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let chart = overlay as? ChartOverlay {
-                return ChartRenderer(chart: chart)
+        /// What's under a tap: a ship, a charted object, a zone, and the charted depth.
+        private func hit(at point: CGPoint, coordinate: CLLocationCoordinate2D, on map: MLNMapView) -> ChartHit {
+            var hit = ChartHit(coordinate: coordinate)
+            let reach = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
+            let layerIDs = Set(map.style?.layers.map(\.identifier) ?? [])
+            func layers(_ suffixes: [String]) -> Set<String> {
+                layerIDs.filter { id in suffixes.contains { id.hasSuffix($0) } }
             }
-            if let tiles = overlay as? MKTileOverlay {
-                return MKTileOverlayRenderer(tileOverlay: tiles)
-            }
-            if overlay is GraticuleOverlay {
-                let renderer = GraticuleRenderer(overlay: overlay)
-                renderer.dark = mapView.traitCollection.userInterfaceStyle == .dark
-                return renderer
-            }
-            if let circle = overlay as? MKCircle {
-                let renderer = MKCircleRenderer(circle: circle)
-                let colour: UIColor = anchorAlarmShown ? .systemRed : .systemPurple
-                renderer.strokeColor = colour
-                renderer.fillColor = colour.withAlphaComponent(0.1)
-                renderer.lineWidth = 2
-                renderer.lineDashPattern = [6, 4]
-                return renderer
-            }
-            if let line = overlay as? MKPolyline, let style = lineStyles[ObjectIdentifier(line)] {
-                let renderer = MKPolylineRenderer(polyline: line)
-                renderer.lineCap = .round
-                switch style {
-                case .activeLeg:
-                    renderer.strokeColor = .systemPink
-                    renderer.lineWidth = 6
-                case .ahead:
-                    renderer.strokeColor = UIColor.systemPink.withAlphaComponent(0.6)
-                    renderer.lineWidth = 3
-                case .bearing:
-                    renderer.strokeColor = .systemPink
-                    renderer.lineWidth = 2
-                    renderer.lineDashPattern = [6, 5]
-                case .cog:
-                    renderer.strokeColor = mapView.traitCollection.userInterfaceStyle == .dark ? .white : .black
-                    renderer.lineWidth = 2.5
-                case .mob:
-                    renderer.strokeColor = .systemRed
-                    renderer.lineWidth = 3
-                    renderer.lineDashPattern = [8, 5]
-                case .swing:
-                    renderer.strokeColor = UIColor.systemPurple.withAlphaComponent(0.7)
-                    renderer.lineWidth = 1.5
-                }
-                return renderer
-            }
-            if let line = overlay as? MKPolyline {
-                let renderer = MKPolylineRenderer(polyline: line)
-                if line === trackLine {
-                    renderer.strokeColor = .systemOrange
-                    renderer.lineWidth = 3
-                } else if hazardLines.contains(ObjectIdentifier(line)) {
-                    renderer.strokeColor = .systemRed
-                    renderer.lineWidth = 4
-                    renderer.lineDashPattern = [8, 6]
-                } else {
-                    renderer.strokeColor = .tintColor
-                    renderer.lineWidth = 4
-                    renderer.lineCap = .round
-                    renderer.lineJoin = .round
-                }
-                return renderer
-            }
-            return MKOverlayRenderer(overlay: overlay)
-        }
-
-        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            switch annotation {
-            case let waypoint as WaypointAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: WaypointView.reuseID, for: waypoint) as! WaypointView
-                view.configure(waypoint, editing: parent.isEditing)
-                return view
-            case let sample as ConditionsAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: ConditionsView.reuseID, for: sample) as! ConditionsView
-                view.configure(sample.sample)
-                return view
-            case let mark as SeamarkAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: HarbourView.reuseID, for: mark) as! HarbourView
-                view.configure(mark.seamark)
-                return view
-            case is AnchorAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: BadgeView.reuseID, for: annotation) as! BadgeView
-                view.configure(text: "⚓︎", fill: anchorAlarmShown ? .systemRed : .systemPurple, textColor: .white, size: 30)
-                return view
-            case is MOBAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: BadgeView.reuseID, for: annotation) as! BadgeView
-                view.configure(text: "MOB", fill: .systemRed, textColor: .white, size: 40)
-                return view
-            case let leg as LegAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: LegLabelView.reuseID, for: leg) as! LegLabelView
-                view.configure(leg.text)
-                return view
-            case is InspectAnnotation:
-                return mapView.dequeueReusableAnnotationView(withIdentifier: InspectView.reuseID, for: annotation)
-            case let wind as WindArrowAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: WindArrowView.reuseID, for: wind) as! WindArrowView
-                view.configure(wind.arrow)
-                return view
-            case let vessel as VesselAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: VesselView.reuseID, for: vessel) as! VesselView
-                view.configure(vessel.marker)
-                return view
-            default:
-                return nil
-            }
-        }
-
-        func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView,
-                     didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
-            guard let waypoint = view.annotation as? WaypointAnnotation else { return }
-            switch newState {
-            case .ending, .canceling:
-                view.dragState = .none
-                parent.onMoveWaypoint(waypoint.id, waypoint.coordinate)
-            default: break
-            }
-        }
-
-        func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
-            if annotation is MKUserLocation { return }
-            // A tap that drops a pin lands on the new pin too; pins have nothing to show, so don't select.
-            mapView.deselectAnnotation(annotation, animated: false)
-            if let mark = annotation as? SeamarkAnnotation, !parent.isEditing {
-                parent.onInspect(mark.coordinate, mark.seamark)
-            }
-            if let vessel = annotation as? VesselAnnotation, !parent.isEditing {
-                parent.onSelectVessel(vessel.marker.vessel)
-            }
-        }
-
-        private var followedFirstFix = false
-
-        /// A follow request made before the first GPS fix is lost; repeat it once the boat shows up.
-        func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
-            guard !followedFirstFix, userLocation.location != nil else { return }
-            followedFirstFix = true
-            guard currentTracking != .none, mapView.userTrackingMode == .none else { return }
-            let mode: MKUserTrackingMode = currentTracking == .heading ? .followWithHeading : .follow
-            mapView.setUserTrackingMode(mode, animated: true)
-        }
-
-        func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
-            let tracking: AppModel.UserTracking = switch mode {
-            case .follow: .follow
-            case .followWithHeading: .heading
-            default: .none
-            }
-            guard tracking != currentTracking else { return }
-            // MapKit drops a follow request it can't honour yet (no fix); keep ours until the first fix.
-            if tracking == .none && !followedFirstFix { return }
-            currentTracking = tracking
-            // Panning the map drops follow mode; mirror that back into the model.
-            DispatchQueue.main.async { self.parent.onTrackingChange(tracking) }
-        }
-
-        private var lastCamera = AppModel.MapCamera()
-        private var lastCameraUpdate = Date.distantPast
-
-        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            publishCamera(mapView, force: true)
-            let region = mapView.region
-            guard region.span.longitudeDelta > 0 else { return }
-            let box = GeoBox(west: region.center.longitude - region.span.longitudeDelta / 2,
-                             south: region.center.latitude - region.span.latitudeDelta / 2,
-                             east: region.center.longitude + region.span.longitudeDelta / 2,
-                             north: region.center.latitude + region.span.latitudeDelta / 2)
-            // Layer fetches are model state; don't change it in the middle of a view update.
-            DispatchQueue.main.async { self.parent.onRegionChange(box) }
-        }
-
-        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
-            publishCamera(mapView, force: false)
-        }
-
-        /// Scale bar and grid labels; throttled while the map moves so SwiftUI isn't re-rendered every frame.
-        private func publishCamera(_ mapView: MKMapView, force: Bool) {
-            guard force || Date().timeIntervalSince(lastCameraUpdate) > 0.12 else { return }
-            lastCameraUpdate = Date()
-            let bounds = mapView.bounds
-            guard bounds.width > 0 else { return }
-            var camera = AppModel.MapCamera()
-            let left = mapView.convert(CGPoint(x: bounds.midX - 50, y: bounds.midY), toCoordinateFrom: mapView)
-            let right = mapView.convert(CGPoint(x: bounds.midX + 50, y: bounds.midY), toCoordinateFrom: mapView)
-            camera.metresPerPoint = Geo.distanceNM(left, right) * 1852 / 100
-
-            // Harbours and anchorages only once zoomed in far enough to tell them apart.
-            let showHarbours = camera.metresPerPoint < 30
-            if showHarbours != harboursShown {
-                harboursShown = showHarbours
-                if showHarbours { mapView.addAnnotations(harbours) } else { mapView.removeAnnotations(harbours) }
-            }
-
-            if parent.showGrid {
-                let region = mapView.region
-                let pointsPerDegree = bounds.width / region.span.longitudeDelta
-                let minutes = Graticule.step(pointsPerDegree: pointsPerDegree)
-                let step = minutes / 60
-                let west = region.center.longitude - region.span.longitudeDelta / 2
-                let north = region.center.latitude + region.span.latitudeDelta / 2
-                var lon = (west / step).rounded(.up) * step
-                while lon < west + region.span.longitudeDelta {
-                    let x = mapView.convert(CLLocationCoordinate2D(latitude: region.center.latitude, longitude: lon), toPointTo: mapView).x
-                    camera.longitudeLabels.append(.init(position: x, text: Graticule.format(lon, positive: "E", negative: "W", step: minutes)))
-                    lon += step
-                }
-                var lat = (north / step).rounded(.down) * step
-                while lat > north - region.span.latitudeDelta {
-                    let y = mapView.convert(CLLocationCoordinate2D(latitude: lat, longitude: region.center.longitude), toPointTo: mapView).y
-                    camera.latitudeLabels.append(.init(position: y, text: Graticule.format(lat, positive: "N", negative: "S", step: minutes)))
-                    lat -= step
+            // Closest feature to the finger first.
+            func nearest(_ features: [MLNFeature]) -> MLNFeature? {
+                features.min { a, b in
+                    let pa = map.convert(a.coordinate, toPointTo: map), pb = map.convert(b.coordinate, toPointTo: map)
+                    return hypot(pa.x - point.x, pa.y - point.y) < hypot(pb.x - point.x, pb.y - point.y)
                 }
             }
-            let scaleChanged = abs(camera.metresPerPoint - lastCamera.metresPerPoint) > lastCamera.metresPerPoint * 0.02
-            guard scaleChanged || camera.longitudeLabels != lastCamera.longitudeLabels || camera.latitudeLabels != lastCamera.latitudeLabels else { return }
-            lastCamera = camera
-            parent.onCameraChange(camera)
+            if let ship = nearest(map.visibleFeatures(in: reach, styleLayerIdentifiers: ["live-ais"])),
+               let mmsi = (ship.attribute(forKey: "mmsi") as? NSNumber)?.intValue {
+                hit.mmsi = mmsi
+                return hit
+            }
+            if let mark = nearest(map.visibleFeatures(in: reach, styleLayerIdentifiers: ["live-marks"])),
+               let id = (mark.attribute(forKey: "id") as? String).flatMap(UUID.init) {
+                hit.markID = id
+                return hit
+            }
+            let seamarkLayers = layers(["-seamark", "-flare"])
+            if let feature = nearest(map.visibleFeatures(in: reach, styleLayerIdentifiers: seamarkLayers)) {
+                hit.seamark = Seamark(feature: feature)
+            }
+            let here = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
+            for feature in map.visibleFeatures(in: here, styleLayerIdentifiers: layers(["-area-fill", "-area-line", "-area-separation", "-area-cable"])) {
+                if let kind = feature.attribute(forKey: "kind") as? String {
+                    hit.zones.append(ChartHit.Zone(kind: kind, name: feature.attribute(forKey: "n") as? String,
+                                                   detail: feature.attribute(forKey: "res") as? String ?? feature.attribute(forKey: "c") as? String))
+                }
+            }
+            // Depth band where no pack grid knows better.
+            let depthLayers = layers(["-area"]).filter { $0.hasPrefix("pack-") || $0.hasPrefix("bathy") }
+            if let band = map.visibleFeatures(at: point, styleLayerIdentifiers: depthLayers).first,
+               let min = (band.attribute(forKey: "min") as? NSNumber)?.doubleValue,
+               let max = (band.attribute(forKey: "max") as? NSNumber)?.doubleValue {
+                hit.depthBand = min...max
+            }
+            return hit
+        }
+    }
+}
+
+/// What the user tapped on the chart.
+struct ChartHit: Equatable {
+    struct Zone: Equatable, Hashable {
+        var kind: String
+        var name: String?
+        var detail: String?
+    }
+    var coordinate: CLLocationCoordinate2D
+    var seamark: Seamark?
+    var mmsi: Int?
+    var markID: UUID?
+    var zones: [Zone] = []
+    var depthBand: ClosedRange<Double>?
+
+    static func == (a: ChartHit, b: ChartHit) -> Bool {
+        a.coordinate.latitude == b.coordinate.latitude && a.coordinate.longitude == b.coordinate.longitude
+            && a.seamark == b.seamark && a.mmsi == b.mmsi && a.markID == b.markID && a.zones == b.zones && a.depthBand == b.depthBand
+    }
+}
+
+extension Seamark {
+    /// A seamark from a vector chart feature (the pack's `seamark` layer).
+    init?(feature: MLNFeature) {
+        guard let type = feature.attribute(forKey: "t") as? String else { return nil }
+        func text(_ key: String) -> String? { feature.attribute(forKey: key) as? String }
+        self.init(type: type, name: text("n"), latitude: feature.coordinate.latitude, longitude: feature.coordinate.longitude,
+                  category: text("c"), colour: text("col"), light: text("l"), depth: text("d"), waterLevel: text("wl"))
+    }
+}
+
+// MARK: - Features
+
+private func point(_ c: CLLocationCoordinate2D, _ attributes: [String: Any]) -> MLNPointFeature {
+    let f = MLNPointFeature()
+    f.coordinate = c
+    f.attributes = attributes
+    return f
+}
+
+private func polyline(_ coordinates: [CLLocationCoordinate2D], _ attributes: [String: Any]) -> MLNPolylineFeature {
+    var coordinates = coordinates
+    let f = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+    f.attributes = attributes
+    return f
+}
+
+private func polygon(_ ring: [CLLocationCoordinate2D], _ attributes: [String: Any]) -> MLNPolygonFeature {
+    var ring = ring
+    let f = MLNPolygonFeature(coordinates: &ring, count: UInt(ring.count))
+    f.attributes = attributes
+    return f
+}
+
+private func routeFeatures(_ path: [CLLocationCoordinate2D], _ hazards: [String?]) -> [MLNShape] {
+    guard path.count >= 2 else { return [] }
+    if hazards.contains(where: { $0 != nil }), hazards.count == path.count - 1 {
+        // Manual route with problems: leg by leg so the bad ones stand out.
+        return zip(path, path.dropFirst()).enumerated().map { i, pair in polyline([pair.0, pair.1], ["hazard": hazards[i] != nil]) }
+    }
+    return [polyline(path, ["hazard": false])]
+}
+
+private func aisFeatures(_ vessels: [VesselMarker]) -> [MLNShape] {
+    vessels.map { m in
+        let v = m.vessel
+        let moving = v.isUnderway && v.course != nil
+        return point(v.coordinate, [
+            "mmsi": v.mmsi, "name": v.displayName, "colour": m.colour, "danger": m.danger,
+            "moving": moving, "course": moving ? v.course ?? 0 : 0,
+        ])
+    }
+}
+
+/// Where each moving ship will be in six minutes, as on a plotter's AIS overlay.
+private func aisVectors(_ vessels: [VesselMarker]) -> [MLNShape] {
+    vessels.compactMap { m in
+        let v = m.vessel
+        guard v.isUnderway, let sog = v.sog, sog > 1, let course = v.cog ?? v.heading else { return nil }
+        let ahead = Geo.destination(from: v.coordinate, bearing: course, distanceNM: sog / 10)
+        return polyline([v.coordinate, ahead], ["danger": m.danger, "colour": m.colour])
+    }
+}
+
+private func underwayFeatures(_ state: UnderwayMapState) -> [MLNShape] {
+    var features: [MLNShape] = []
+    func line(_ points: [CLLocationCoordinate2D], _ style: String) {
+        if points.count >= 2 { features.append(polyline(points, ["style": style, "alarm": state.anchorAlarm])) }
+    }
+    if state.ahead.count >= 2, !state.activeLeg.isEmpty { line(state.ahead.map(\.coordinate), "ahead") }
+    if state.activeLeg.count == 2 { line(state.activeLeg.map(\.coordinate), "activeLeg") }
+    if let boat = state.boat {
+        if let next = state.next { line([boat.coordinate, next.coordinate], "bearing") }
+        if let mob = state.mob { line([boat.coordinate, mob.coordinate], "mob") }
+        // Where the boat will be in 6 minutes on its current course and speed.
+        if let cog = state.cog, let sog = state.sog, sog > 0.3 {
+            line([boat.coordinate, Geo.destination(from: boat.coordinate, bearing: cog, distanceNM: sog / 10)], "cog")
+        }
+    }
+    if let anchor = state.anchor {
+        let ring = (0...64).map { Geo.destination(from: anchor.coordinate, bearing: Double($0) * 360 / 64, distanceNM: state.anchorRadius / 1852) }
+        features.append(polygon(ring, ["alarm": state.anchorAlarm]))
+        line(ring, "circle")
+        line(state.swing.map(\.coordinate), "swing")
+        features.append(point(anchor.coordinate, ["icon": state.anchorAlarm ? "anchor-alarm" : "anchor-mark"]))
+    }
+    if let mob = state.mob { features.append(point(mob.coordinate, ["icon": "mob-mark"])) }
+    return features
+}
+
+private func warningFeatures(_ warnings: [WeatherWarning]) -> [MLNShape] {
+    warnings.flatMap { w in
+        (w.polygon ?? []).compactMap { ring -> MLNShape? in
+            let points = ring.compactMap { $0.count >= 2 ? CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) : nil }
+            return points.count >= 3 ? polygon(points, ["level": w.level ?? "yellow"]) : nil
+        }
+    }
+}
+
+private func measureFeatures(_ points: [CLLocationCoordinate2D]) -> [MLNShape] {
+    guard let first = points.first else { return [] }
+    var features: [MLNShape] = [point(first, ["text": ""])]
+    if points.count >= 2, let last = points.last {
+        features.append(polyline(points, [:]))
+        let distance = Geo.distanceNM(first, last)
+        let text = String(format: "%03.0f° · %@", Geo.bearing(first, last),
+                          distance < 0.3 ? "\(Int((distance * 1852).rounded())) m" : String(format: "%.2f NM", distance))
+        features.append(point(last, ["text": text]))
+    }
+    return features
+}
+
+// MARK: - Keys for change detection
+
+private struct RouteKey: Hashable {
+    var path: [Double]
+    var hazards: [Bool]
+    init(path: [CLLocationCoordinate2D], hazards: [Bool]) {
+        self.path = path.flatMap { [$0.latitude, $0.longitude] }
+        self.hazards = hazards
+    }
+}
+
+private struct WindKey: Hashable {
+    var values: [Double]
+    init(arrows: [WindArrow]) { values = arrows.flatMap { [$0.latitude, $0.longitude, $0.speed, $0.from] } }
+}
+
+private struct VesselKey: Hashable {
+    var values: [String]
+    init(markers: [VesselMarker]) {
+        values = markers.map { "\($0.vessel.mmsi):\($0.vessel.lat):\($0.vessel.lon):\($0.vessel.cog ?? -1):\($0.danger)" }
+    }
+}
+
+private struct UnderwayKey: Hashable {
+    var text: String
+    init(state: UnderwayMapState) { text = String(describing: state) }
+}
+
+// MARK: - Views
+
+nonisolated final class WaypointAnnotation: MLNPointAnnotation, @unchecked Sendable {
+    let id: Waypoint.ID
+    let index: Int
+    let count: Int
+
+    init(id: Waypoint.ID, coordinate: CLLocationCoordinate2D, index: Int, count: Int) {
+        self.id = id
+        self.index = index
+        self.count = count
+        super.init()
+        self.coordinate = coordinate
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+}
+
+/// A round waypoint marker: a boat at the start, a flag at the finish, the number in between.
+final class WaypointPin: MLNAnnotationView {
+    static let reuseID = "waypoint"
+    var onDragEnded: ((CLLocationCoordinate2D) -> Void)?
+    private let disc = UIView()
+    private let label = UILabel()
+    private let icon = UIImageView()
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 30, height: 30)
+        disc.frame = bounds
+        disc.layer.cornerRadius = 15
+        disc.layer.borderWidth = 2.5
+        disc.layer.borderColor = UIColor.white.cgColor
+        disc.layer.shadowColor = UIColor.black.cgColor
+        disc.layer.shadowOpacity = 0.3
+        disc.layer.shadowRadius = 2
+        disc.layer.shadowOffset = CGSize(width: 0, height: 1)
+        addSubview(disc)
+        label.frame = bounds
+        label.textAlignment = .center
+        label.font = .systemFont(ofSize: 13, weight: .bold)
+        label.textColor = .white
+        addSubview(label)
+        icon.frame = bounds.insetBy(dx: 7, dy: 7)
+        icon.contentMode = .scaleAspectFit
+        icon.tintColor = .white
+        addSubview(icon)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(_ waypoint: WaypointAnnotation, editing: Bool) {
+        let isStart = waypoint.index == 0
+        let isEnd = waypoint.index == waypoint.count - 1 && waypoint.count > 1
+        disc.backgroundColor = isStart ? .systemGreen : isEnd ? .systemRed : .systemBlue
+        label.text = isStart || isEnd ? nil : "\(waypoint.index + 1)"
+        icon.image = isStart ? UIImage(systemName: "sailboat.fill") : isEnd ? UIImage(systemName: "flag.checkered") : nil
+        isDraggable = editing
+        transform = editing ? CGAffineTransform(scaleX: 1.15, y: 1.15) : .identity
+    }
+
+    override func setDragState(_ dragState: MLNAnnotationViewDragState, animated: Bool) {
+        super.setDragState(dragState, animated: animated)
+        switch dragState {
+        case .starting:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            UIView.animate(withDuration: 0.15) { self.transform = CGAffineTransform(scaleX: 1.4, y: 1.4) }
+        case .ending, .canceling:
+            UIView.animate(withDuration: 0.15) { self.transform = CGAffineTransform(scaleX: 1.15, y: 1.15) }
+            if let coordinate = annotation?.coordinate { onDragEnded?(coordinate) }
+        default:
+            break
         }
     }
 }

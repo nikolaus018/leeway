@@ -1,0 +1,3 @@
+# Resolve dependencies to versions that build on rust-version (1.85, the Venvy host).
+[resolver]
+incompatible-rust-versions = "fallback"

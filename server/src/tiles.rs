@@ -1,71 +1,65 @@
-//! OpenSeaMap seamark tiles with a disk cache. OpenSeaMap is run by volunteers: the cache keeps
-//! repeat requests off their servers, and stale tiles are still served if they are down.
+//! OpenSeaMap seamark tiles. OpenSeaMap is run by volunteers: the shared cache keeps repeat requests
+//! off their servers, and stale tiles are still served if they are down.
 
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Result};
 use tokio::sync::Semaphore;
 
-use crate::config::Config;
+use crate::{
+    cache::{Blob, TileCache},
+    config::Config,
+};
 
-/// Re-fetch tiles older than this.
-const FRESH: Duration = Duration::from_secs(14 * 24 * 3600);
 pub const MAX_ZOOM: u32 = 18;
 
-pub enum Tile {
-    Png(Vec<u8>),
-    /// Nothing charted in this tile.
-    Empty,
+/// West, south, east, north of tile z/x/y in degrees.
+pub fn bounds(z: u32, x: u32, y: u32) -> [f64; 4] {
+    let n = (1u64 << z) as f64;
+    let lat = |t: f64| (std::f64::consts::PI * (1.0 - 2.0 * t / n)).sinh().atan().to_degrees();
+    [x as f64 / n * 360.0 - 180.0, lat(y as f64 + 1.0), (x as f64 + 1.0) / n * 360.0 - 180.0, lat(y as f64)]
+}
+
+/// Boxes (`w,s,e,n;w,s,e,n`) the app draws its own seamarks in, from a chart pack.
+pub fn parse_skip(spec: &str) -> Vec<[f64; 4]> {
+    spec.split(';')
+        .filter_map(|b| {
+            let v: Vec<f64> = b.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+            (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+        })
+        .take(32)
+        .collect()
+}
+
+/// The tile lies wholly inside one of the boxes.
+pub fn covered(z: u32, x: u32, y: u32, boxes: &[[f64; 4]]) -> bool {
+    let [w, s, e, n] = bounds(z, x, y);
+    boxes.iter().any(|b| w >= b[0] && s >= b[1] && e <= b[2] && n <= b[3])
 }
 
 pub struct SeamarkTiles {
     http: reqwest::Client,
     config: Arc<Config>,
+    pub cache: Arc<TileCache>,
     /// Be polite upstream: a few requests at a time.
     upstream: Semaphore,
 }
 
 impl SeamarkTiles {
     pub fn new(http: reqwest::Client, config: Arc<Config>) -> Self {
-        SeamarkTiles { http, config, upstream: Semaphore::new(6) }
+        SeamarkTiles {
+            cache: Arc::new(TileCache::new("seamark", &config.cache_dir, Duration::from_secs(14 * 86400), 64)),
+            http,
+            config,
+            upstream: Semaphore::new(6),
+        }
     }
 
-    fn path(&self, z: u32, x: u32, y: u32, ext: &str) -> PathBuf {
-        self.config.cache_dir.join("seamark").join(z.to_string()).join(x.to_string()).join(format!("{y}.{ext}"))
-    }
-
-    pub async fn tile(&self, z: u32, x: u32, y: u32) -> Result<Tile> {
+    pub async fn tile(&self, z: u32, x: u32, y: u32) -> Result<Arc<Blob>> {
         if z > MAX_ZOOM || x >= 1 << z || y >= 1 << z {
             return Err(anyhow!("no such tile {z}/{x}/{y}"));
         }
-        let png = self.path(z, x, y, "png");
-        let empty = self.path(z, x, y, "empty");
-        if is_fresh(&png).await {
-            if let Some(data) = cached(&png).await {
-                return Ok(Tile::Png(data));
-            }
-        }
-        if is_fresh(&empty).await {
-            return Ok(Tile::Empty);
-        }
-        match self.download(z, x, y).await {
-            Ok(Some(data)) => {
-                write(&png, &data).await;
-                let _ = tokio::fs::remove_file(&empty).await;
-                Ok(Tile::Png(data))
-            }
-            Ok(None) => {
-                write(&empty, b"").await;
-                let _ = tokio::fs::remove_file(&png).await;
-                Ok(Tile::Empty)
-            }
-            // Upstream down: a stale tile beats no tile.
-            Err(error) => cached(&png).await.map(Tile::Png).ok_or(error),
-        }
+        self.cache.get(&format!("{z}/{x}/{y}.png"), || self.download(z, x, y)).await
     }
 
     async fn download(&self, z: u32, x: u32, y: u32) -> Result<Option<Vec<u8>>> {
@@ -81,7 +75,7 @@ impl SeamarkTiles {
             200 => {
                 let data = response.bytes().await?.to_vec();
                 // OpenSeaMap sometimes answers an empty tile with a tiny or non-PNG body.
-                Ok(if data.starts_with(b"\x89PNG") { Some(data) } else { None })
+                Ok(data.starts_with(b"\x89PNG").then_some(data))
             }
             204 | 404 => Ok(None),
             status => Err(anyhow!("{url} answered {status}")),
@@ -89,24 +83,18 @@ impl SeamarkTiles {
     }
 }
 
-async fn cached(path: &PathBuf) -> Option<Vec<u8>> {
-    tokio::fs::read(path).await.ok()
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-async fn is_fresh(path: &PathBuf) -> bool {
-    let Ok(meta) = tokio::fs::metadata(path).await else { return false };
-    let age = meta.modified().ok().and_then(|m| SystemTime::now().duration_since(m).ok());
-    age.is_some_and(|age| age < FRESH)
-}
-
-/// Write via a temp file so a half-written tile is never served.
-async fn write(path: &PathBuf, data: &[u8]) {
-    let Some(dir) = path.parent() else { return };
-    if tokio::fs::create_dir_all(dir).await.is_err() {
-        return;
-    }
-    let tmp = path.with_extension(format!("tmp{}", std::process::id()));
-    if tokio::fs::write(&tmp, data).await.is_ok() {
-        let _ = tokio::fs::rename(&tmp, path).await;
+    #[test]
+    fn skips_tiles_inside_packs() {
+        let boxes = parse_skip("13.2,42.2,19.0,45.57;bad");
+        assert_eq!(boxes.len(), 1);
+        // z10 tile over Kvarner is inside, a z6 tile reaching beyond is not.
+        assert!(covered(10, 553, 367, &boxes));
+        assert!(!covered(6, 34, 22, &boxes));
+        let [w, s, e, n] = bounds(0, 0, 0);
+        assert!((w + 180.0).abs() < 1e-9 && (e - 180.0).abs() < 1e-9 && (n - 85.0511).abs() < 1e-3 && s < -85.0);
     }
 }

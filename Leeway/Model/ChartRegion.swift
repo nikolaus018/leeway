@@ -25,6 +25,11 @@ nonisolated struct Seamark: Decodable, Sendable, Hashable {
     /// Charted depth over the object, if known.
     var depthMetres: Double? { depth.flatMap { Double($0.replacingOccurrences(of: ",", with: ".").split(separator: " ").first ?? "") } }
 
+    /// Parsed light characteristic for flashing animation and color.
+    var lightCharacteristic: LightCharacteristic? {
+        light.flatMap { LightCharacteristic.parse($0, fallbackColour: colour) }
+    }
+
     var isDanger: Bool { ["rock", "wreck", "obstruction"].contains(type) }
 
     /// Plain-language name of the object type.
@@ -104,6 +109,8 @@ nonisolated final class ChartRegion: Sendable {
     /// Bounding box per ring: west, south, east, north.
     let ringBounds: [SIMD4<Float>]
     let attribution: String
+    /// The pack's vector chart (`<id>.pmtiles`), which the map draws; older packs have none.
+    let vectorFile: URL?
     /// Cell size in nautical miles.
     let cellNM: (dx: Double, dy: Double)
 
@@ -116,7 +123,7 @@ nonisolated final class ChartRegion: Sendable {
         let names: [PlaceName]?
     }
 
-    init(metadata: URL, depth: URL, land: URL? = nil) throws {
+    init(metadata: URL, depth: URL, land: URL? = nil, vector: URL? = nil) throws {
         let meta = try JSONDecoder().decode(Meta.self, from: Data(contentsOf: metadata))
         let packed = try Data(contentsOf: depth) as NSData
         let raw = try packed.decompressed(using: .zlib) as Data
@@ -142,6 +149,7 @@ nonisolated final class ChartRegion: Sendable {
         }
         let midLat = (north + south) / 2
         cellNM = (lonStep * 60 * cos(midLat.radians), latStep * 60)
+        vectorFile = vector.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
     }
 
     /// Chart packs downloaded from the data server.
@@ -161,7 +169,7 @@ nonisolated final class ChartRegion: Sendable {
         metas.compactMap { meta in
             let base = meta.deletingPathExtension()
             return try? ChartRegion(metadata: meta, depth: base.appendingPathExtension("depth"),
-                                    land: base.appendingPathExtension("land"))
+                                    land: base.appendingPathExtension("land"), vector: base.appendingPathExtension("pmtiles"))
         }
     }
 
@@ -249,5 +257,210 @@ nonisolated final class ChartRegion: Sendable {
         }
         add(codes.0, weights.0); add(codes.1, weights.1); add(codes.2, weights.2); add(codes.3, weights.3)
         return (water > 0 ? depth / water : 0, land)
+    }
+}
+
+// MARK: - Light Characteristic Engine
+
+/// Marine light characteristic (e.g. "Fl(2)R.5s 12m 6M") parsing and timing engine.
+nonisolated struct LightCharacteristic: Sendable, Hashable {
+    enum Rhythm: Sendable, Hashable {
+        case fixed
+        case flashing
+        case longFlashing
+        case quick
+        case veryQuick
+        case isophase
+        case occulting
+        case morse(String)
+    }
+
+    enum LightColor: String, Sendable, Hashable {
+        case white, red, green, yellow, blue
+    }
+
+    var rhythm: Rhythm
+    var group: Int
+    var color: LightColor
+    var period: Double
+
+    /// Is the light emitting beam at this time?
+    func isOn(at date: Date) -> Bool {
+        let t = date.timeIntervalSinceReferenceDate
+        guard period > 0 else { return true }
+        let phase = t.truncatingRemainder(dividingBy: period)
+        let normalizedPhase = phase >= 0 ? phase : phase + period
+
+        switch rhythm {
+        case .fixed:
+            return true
+
+        case .isophase:
+            return normalizedPhase < (period / 2.0)
+
+        case .occulting:
+            let eclipseDuration = 1.0
+            let darkStart = max(0, period - eclipseDuration * Double(group))
+            if normalizedPhase < darkStart { return true }
+            let inEclipse = normalizedPhase - darkStart
+            let cycle = inEclipse.truncatingRemainder(dividingBy: eclipseDuration)
+            return cycle > (eclipseDuration * 0.7)
+
+        case .flashing, .longFlashing, .quick, .veryQuick:
+            let (flashDuration, flashInterval): (Double, Double) = switch rhythm {
+            case .veryQuick: (0.2, 0.4)
+            case .quick: (0.3, 0.8)
+            case .longFlashing: (2.0, 3.0)
+            default: (0.6, 1.2)
+            }
+
+            let groupSpan = Double(group - 1) * flashInterval + flashDuration
+            if normalizedPhase >= groupSpan {
+                return false
+            }
+            let flashIndex = Int(normalizedPhase / flashInterval)
+            if flashIndex < group {
+                let offsetInFlash = normalizedPhase - Double(flashIndex) * flashInterval
+                return offsetInFlash <= flashDuration
+            }
+            return false
+
+        case .morse(let code):
+            let dot = 0.4
+            let dash = 1.2
+            let gap = 0.4
+            var cur = 0.0
+            for char in code {
+                let len = (char == "-" || char == "T" || char == "M" || char == "A") ? dash : dot
+                if normalizedPhase >= cur && normalizedPhase < cur + len {
+                    return true
+                }
+                cur += len + gap
+            }
+            return false
+        }
+    }
+
+    static func parse(_ raw: String, fallbackColour: String? = nil) -> LightCharacteristic? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+
+        let token = trimmed.components(separatedBy: " ").first ?? trimmed
+        let upper = token.uppercased()
+
+        let rhythm: Rhythm
+        let group: Int
+
+        if upper.contains("VQ") {
+            rhythm = .veryQuick
+            group = extractGroup(from: upper) ?? 1
+        } else if upper.contains("IQ") {
+            rhythm = .quick
+            group = extractGroup(from: upper) ?? 9
+        } else if upper.contains("Q") {
+            rhythm = .quick
+            group = extractGroup(from: upper) ?? 1
+        } else if upper.contains("LFL") {
+            rhythm = .longFlashing
+            group = extractGroup(from: upper) ?? 1
+        } else if upper.contains("FL") {
+            rhythm = .flashing
+            group = extractGroup(from: upper) ?? 1
+        } else if upper.contains("ISO") {
+            rhythm = .isophase
+            group = 1
+        } else if upper.contains("OC") {
+            rhythm = .occulting
+            group = extractGroup(from: upper) ?? 1
+        } else if upper.contains("MO(") {
+            let code = extractBetween(upper, prefix: "MO(", suffix: ")") ?? "A"
+            rhythm = .morse(code)
+            group = 1
+        } else if upper.hasPrefix("F") {
+            rhythm = .fixed
+            group = 1
+        } else {
+            return nil
+        }
+
+        var period = extractPeriod(from: trimmed)
+        if period == nil || period == 0 {
+            period = defaultPeriod(for: rhythm, group: group)
+        }
+
+        let color = extractColor(from: token) ?? fallbackColor(from: fallbackColour)
+
+        return LightCharacteristic(rhythm: rhythm, group: group, color: color, period: period ?? 4.0)
+    }
+
+    private static func extractGroup(from s: String) -> Int? {
+        guard let start = s.firstIndex(of: "("), let end = s.firstIndex(of: ")"), start < end else { return nil }
+        let sub = s[s.index(after: start)..<end]
+        return Int(sub)
+    }
+
+    private static func extractBetween(_ s: String, prefix: String, suffix: String) -> String? {
+        guard let r1 = s.range(of: prefix), let r2 = s.range(of: suffix, range: r1.upperBound..<s.endIndex) else { return nil }
+        return String(s[r1.upperBound..<r2.lowerBound])
+    }
+
+    private static func extractPeriod(from s: String) -> Double? {
+        guard let pattern = try? NSRegularExpression(pattern: #"(?:^|[ .])(\d+(?:\.\d+)?)s\b"#, options: .caseInsensitive) else {
+            return nil
+        }
+        let ns = s as NSString
+        if let match = pattern.firstMatch(in: s, range: NSRange(location: 0, length: ns.length)), match.numberOfRanges > 1 {
+            let r = match.range(at: 1)
+            return Double(ns.substring(with: r))
+        }
+        return nil
+    }
+
+    private static func defaultPeriod(for rhythm: Rhythm, group: Int) -> Double {
+        switch rhythm {
+        case .fixed: return 1.0
+        case .veryQuick: return max(Double(group) * 0.5, 1.0)
+        case .quick: return max(Double(group) * 1.0, 1.5)
+        case .longFlashing: return max(Double(group) * 3.0, 5.0)
+        case .flashing: return max(Double(group) * 2.0, 4.0)
+        case .isophase, .occulting: return 4.0
+        case .morse: return 6.0
+        }
+    }
+
+    private static func extractColor(from s: String) -> LightColor? {
+        var cleaned = s
+        for p in ["VERYQUICK", "QUICK", "LFL", "FL", "ISO", "OC", "VQ", "IQ", "Q", "F"] {
+            if let r = cleaned.range(of: p) {
+                cleaned.removeSubrange(r)
+                break
+            }
+        }
+        if let paren = cleaned.firstIndex(of: "("), let endParen = cleaned.firstIndex(of: ")") {
+            cleaned.removeSubrange(paren...endParen)
+        }
+        if let dot = cleaned.firstIndex(of: ".") {
+            cleaned = String(cleaned[..<dot])
+        }
+        for ch in cleaned {
+            switch ch {
+            case "R": return .red
+            case "G": return .green
+            case "Y": return .yellow
+            case "W": return .white
+            case "B": return .blue
+            default: break
+            }
+        }
+        return nil
+    }
+
+    private static func fallbackColor(from colour: String?) -> LightColor {
+        guard let c = colour?.lowercased() else { return .white }
+        if c.contains("red") { return .red }
+        if c.contains("green") { return .green }
+        if c.contains("yellow") { return .yellow }
+        if c.contains("blue") { return .blue }
+        return .white
     }
 }

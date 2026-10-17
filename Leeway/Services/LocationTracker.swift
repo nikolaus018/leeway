@@ -6,9 +6,13 @@ import Observation
 final class LocationTracker {
     private(set) var location: CLLocation?
     private(set) var isRecording = false
-    private(set) var track: [CLLocationCoordinate2D] = []
+    private(set) var trackPoints: [TrackPoint] = []
     private(set) var trackDistance = 0.0
     private(set) var recordingStarted: Date?
+    /// Called with the finished track when recording stops, for the logbook.
+    var onTrackFinished: ((TrackLog) -> Void)?
+
+    var track: [CLLocationCoordinate2D] { trackPoints.map(\.coordinate) }
 
     /// Speed over ground in knots, if the fix has one.
     var sog: Double? {
@@ -46,8 +50,11 @@ final class LocationTracker {
     func toggleRecording() {
         if isRecording {
             isRecording = false
+            if let started = recordingStarted, trackPoints.count >= 2 {
+                onTrackFinished?(TrackLog(start: started, points: trackPoints, distance: trackDistance))
+            }
         } else {
-            track = location.map { [$0.coordinate] } ?? []
+            trackPoints = location.map { [TrackPoint($0)] } ?? []
             trackDistance = 0
             recordingStarted = .now
             isRecording = true
@@ -70,7 +77,7 @@ final class LocationTracker {
 
     func clearTrack() {
         guard !isRecording else { return }
-        track = []
+        trackPoints = []
         trackDistance = 0
         recordingStarted = nil
     }
@@ -79,11 +86,57 @@ final class LocationTracker {
         location = new
         onUpdate?(new)
         guard isRecording, new.horizontalAccuracy >= 0, new.horizontalAccuracy < 50 else { return }
-        if let last = track.last {
-            let moved = Geo.distanceNM(last, new.coordinate)
+        if let last = trackPoints.last {
+            let moved = Geo.distanceNM(last.coordinate, new.coordinate)
             guard moved > 0.005 else { return } // ~10 m, ignore GPS jitter
             trackDistance += moved
         }
-        track.append(new.coordinate)
+        trackPoints.append(TrackPoint(new))
     }
+}
+
+/// One recorded position.
+nonisolated struct TrackPoint: Codable, Hashable, Sendable {
+    var latitude: Double
+    var longitude: Double
+    var time: Date
+    /// Knots, if the fix had a speed.
+    var sog: Double?
+
+    init(_ coordinate: CLLocationCoordinate2D, time: Date, sog: Double?) {
+        latitude = coordinate.latitude
+        longitude = coordinate.longitude
+        self.time = time
+        self.sog = sog
+    }
+
+    init(_ location: CLLocation) {
+        self.init(location.coordinate, time: location.timestamp, sog: location.speed >= 0 ? location.speed * 3600 / 1852 : nil)
+    }
+
+    var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
+}
+
+/// A finished passage in the logbook.
+nonisolated struct TrackLog: Codable, Identifiable, Hashable, Sendable {
+    var id = UUID()
+    var name: String
+    var start: Date
+    var end: Date
+    var points: [TrackPoint]
+    /// NM.
+    var distance: Double
+
+    init(name: String? = nil, start: Date, points: [TrackPoint], distance: Double? = nil) {
+        self.start = start
+        self.points = points
+        end = points.last?.time ?? start
+        self.distance = distance ?? Geo.length(of: points.map(\.coordinate))
+        self.name = name ?? start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
+    }
+
+    var duration: TimeInterval { max(0, end.timeIntervalSince(start)) }
+    var maxSOG: Double? { points.compactMap(\.sog).max() }
+    /// Distance over time under way.
+    var averageSOG: Double? { duration > 60 ? distance / (duration / 3600) : nil }
 }

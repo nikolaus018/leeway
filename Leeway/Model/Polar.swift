@@ -27,6 +27,28 @@ nonisolated enum Polar {
         return (v * cos(beatAngle.radians) / cos(angle.radians), true)
     }
 
+    /// The boat's speed: its own polar when it has one.
+    static func speed(twa: Double, tws: Double, boat: BoatProfile) -> Double {
+        if let table = boat.polar { return table.speed(twa: twa, tws: tws) }
+        return speed(twa: twa, tws: tws, best: boat.sailSpeed)
+    }
+
+    /// Progress along a course `twa` off the wind, tacking upwind (and gybing downwind with a real
+    /// polar) when sailing straight at it is slower.
+    static func speedAlongCourse(twa: Double, tws: Double, boat: BoatProfile) -> (speed: Double, tacking: Bool) {
+        guard let table = boat.polar else { return speedAlongCourse(twa: twa, tws: tws, best: boat.sailSpeed) }
+        let angle = abs(twa)
+        let beat = table.bestBeat(tws: tws)
+        if angle < beat.angle {
+            return (beat.speed * cos(beat.angle.radians) / max(cos(angle.radians), 0.05), true)
+        }
+        let run = table.bestRun(tws: tws)
+        if angle > run.angle {
+            return (run.speed * cos((180 - run.angle).radians) / max(cos((180 - angle).radians), 0.05), true)
+        }
+        return (table.speed(twa: angle, tws: tws), false)
+    }
+
     static func pointOfSail(twa: Double) -> String {
         switch abs(twa) {
         case ..<noGoAngle: "Beating"

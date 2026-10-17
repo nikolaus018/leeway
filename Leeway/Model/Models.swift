@@ -1,5 +1,35 @@
 import CoreLocation
 
+enum AppTab: String, CaseIterable, Identifiable, Hashable {
+    case chart
+    case routes
+    case weather
+    case log
+    case settings
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .chart: "Chart"
+        case .routes: "Routes"
+        case .weather: "Weather"
+        case .log: "Log"
+        case .settings: "Settings"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .chart: "map"
+        case .routes: "point.topleft.down.to.point.bottomright.curvepath"
+        case .weather: "cloud.sun"
+        case .log: "book.closed"
+        case .settings: "gearshape"
+        }
+    }
+}
+
 struct Waypoint: Identifiable, Codable, Hashable {
     var id = UUID()
     var latitude: Double
@@ -19,10 +49,18 @@ struct Waypoint: Identifiable, Codable, Hashable {
 enum RoutingMode: String, Codable, CaseIterable, Identifiable {
     /// Shortest path through water deep enough for the boat.
     case automatic
+    /// Fastest path under sail in the forecast wind (isochrones), just as safe.
+    case weather
     /// Straight legs between the user's waypoints.
     case manual
     var id: Self { self }
-    var label: String { self == .automatic ? "Automatic" : "Manual" }
+    var label: String {
+        switch self {
+        case .automatic: "Shortest"
+        case .weather: "Fastest"
+        case .manual: "Manual"
+        }
+    }
 }
 
 struct Route: Identifiable, Codable, Hashable {
@@ -71,6 +109,8 @@ struct BoatProfile: Codable, Equatable {
     var maxWind = 22.0
     var maxGust = 30.0
     var maxWave = 1.5
+    /// The boat's own polar (a preset or imported); nil uses a generic one scaled by `sailSpeed`.
+    var polar: PolarTable?
 
     var safetyDepth: Double { draft + underKeelClearance }
 
@@ -91,15 +131,75 @@ struct BoatProfile: Codable, Equatable {
         maxWind = try c.decodeIfPresent(Double.self, forKey: .maxWind) ?? d.maxWind
         maxGust = try c.decodeIfPresent(Double.self, forKey: .maxGust) ?? d.maxGust
         maxWave = try c.decodeIfPresent(Double.self, forKey: .maxWave) ?? d.maxWave
+        polar = try c.decodeIfPresent(PolarTable.self, forKey: .polar)
     }
 }
 
 enum MapBase: String, CaseIterable, Identifiable, Codable {
-    /// The offline paper-chart look (base map only outside chart coverage).
+    /// The nautical chart, everywhere.
     case chart
     /// Satellite imagery with depth contours, shallows, soundings and seamarks on top.
     case satellite
     var id: Self { self }
     var label: String { self == .chart ? "Chart" : "Satellite" }
     var symbol: String { self == .chart ? "map" : "globe.europe.africa.fill" }
+}
+
+/// How the chart's colours are chosen.
+enum PaletteMode: String, CaseIterable, Identifiable, Codable {
+    /// By the sun: day, dusk at civil twilight, night after dark.
+    case auto, day, dusk, night
+    var id: Self { self }
+    var label: String { self == .auto ? "Automatic" : rawValue.capitalized }
+}
+
+/// A place the user marked: a good anchorage, a fishing spot, a rock that isn't charted.
+struct UserMark: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var name: String
+    /// SF Symbol name.
+    var symbol: String
+    var latitude: Double
+    var longitude: Double
+    var notes = ""
+    var created = Date()
+
+    init(name: String, symbol: String, coordinate: CLLocationCoordinate2D) {
+        self.name = name
+        self.symbol = symbol
+        latitude = coordinate.latitude
+        longitude = coordinate.longitude
+    }
+
+    var coordinate: CLLocationCoordinate2D {
+        get { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
+        set { latitude = newValue.latitude; longitude = newValue.longitude }
+    }
+
+    static let symbols = ["mappin", "flag.fill", "star.fill", "anchor", "fish.fill", "exclamationmark.triangle.fill", "fuelpump.fill", "fork.knife", "beach.umbrella.fill", "camera.fill"]
+}
+
+/// When the app raises an alarm.
+struct AlarmSettings: Codable, Equatable {
+    /// AIS: a ship passing closer than this (NM)…
+    var cpaDistance = 0.5
+    /// …within this many minutes.
+    var cpaMinutes = 20.0
+    var aisAlarm = true
+    /// Navigation: off track by more than this (NM).
+    var crossTrack = 0.1
+    /// Depth below the keel (m) for the shallow-water alarm from the chart or sounder.
+    var shallowAlarm = true
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = AlarmSettings()
+        cpaDistance = try c.decodeIfPresent(Double.self, forKey: .cpaDistance) ?? d.cpaDistance
+        cpaMinutes = try c.decodeIfPresent(Double.self, forKey: .cpaMinutes) ?? d.cpaMinutes
+        aisAlarm = try c.decodeIfPresent(Bool.self, forKey: .aisAlarm) ?? d.aisAlarm
+        crossTrack = try c.decodeIfPresent(Double.self, forKey: .crossTrack) ?? d.crossTrack
+        shallowAlarm = try c.decodeIfPresent(Bool.self, forKey: .shallowAlarm) ?? d.shallowAlarm
+    }
 }

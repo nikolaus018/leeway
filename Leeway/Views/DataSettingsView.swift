@@ -42,6 +42,7 @@ struct DataSettingsView: View {
                 }
 
                 ChartsSection(server: server ?? Seadata.current)
+                OfflineSection()
             }
             .navigationTitle("Data & charts")
             .navigationBarTitleDisplayMode(.inline)
@@ -181,6 +182,54 @@ private struct ChartRow: View {
         case .installed: return "\(size) · downloaded, up to date"
         case .updateAvailable: return "\(size) · update available"
         case .notInstalled: return bundled ? "\(size) · built-in copy in use" : size
+        }
+    }
+}
+
+/// The base map and depth around each chart, saved for use without signal.
+private struct OfflineSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let offline = model.offline
+        Section {
+            ForEach(model.regions, id: \.id) { region in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(region.name)
+                        if let saved = offline.regions[region.id] {
+                            Text(saved.complete
+                                 ? "Saved · \(ByteCountFormatter.string(fromByteCount: Int64(saved.bytes), countStyle: .file))"
+                                 : "Downloading \(Int(saved.progress * 100)) %")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    if let saved = offline.regions[region.id] {
+                        if saved.complete {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            ProgressView(value: saved.progress).frame(width: 60)
+                        }
+                    } else {
+                        Button("Save") { offline.download(region, style: model.chartStyle) }
+                            .buttonStyle(.bordered)
+                    }
+                }
+                .swipeActions {
+                    if offline.regions[region.id] != nil {
+                        Button("Remove", role: .destructive) { offline.remove(region.id) }
+                    }
+                }
+            }
+            if let error = offline.error {
+                Label(error, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
+            }
+        } header: {
+            Text("Offline map")
+        } footer: {
+            Text("Saves the land map, worldwide depth and place names around each chart, so the whole chart works at sea without signal. Charts themselves are always on the phone.")
         }
     }
 }

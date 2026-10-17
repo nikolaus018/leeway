@@ -2,17 +2,16 @@ import Charts
 import CoreLocation
 import SwiftUI
 
-struct PlannerSheet: View {
+/// Planning: a new passage, saved routes, or the open route with its timing, conditions and legs.
+struct RouteSheet: View {
     @Environment(AppModel.self) private var model
-    @Binding var detent: PresentationDetent
-    @State private var showingBoat = false
-    @State private var showingData = false
+    var close: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
             Group {
                 if model.route.waypoints.isEmpty && !model.isEditing {
-                    HomeList(detent: $detent)
+                    RouteHome(close: close)
                 } else {
                     RouteList()
                 }
@@ -22,68 +21,67 @@ struct PlannerSheet: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Boat", systemImage: "sailboat") { showingBoat = true }
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Data & charts", systemImage: "antenna.radiowaves.left.and.right") { showingData = true }
-                }
-                if !model.route.waypoints.isEmpty || model.isEditing {
-                    ToolbarItem(placement: .topBarTrailing) {
+                if !model.route.waypoints.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
                         Button("Close route", systemImage: "xmark") { model.closeRoute() }
                     }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            model.selectedTab = .chart
+                            close?()
+                        } label: {
+                            Label("View on Chart", systemImage: "map")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu("Share", systemImage: "square.and.arrow.up") {
+                            ShareLink(item: GPXFile(route: model.route, path: model.path), preview: SharePreview(model.route.name)) {
+                                Label("Export GPX", systemImage: "doc")
+                            }
+                        }
+                    }
                 }
-            }
-            .sheet(isPresented: $showingBoat) {
-                BoatSettingsView()
-            }
-            .sheet(isPresented: $showingData) {
-                DataSettingsView()
             }
         }
     }
 
     private var title: String {
         if model.isEditing { return model.route.waypoints.count < 2 ? "New route" : model.route.name }
-        return model.route.waypoints.isEmpty ? "Leeway" : model.route.name
+        return model.route.waypoints.isEmpty ? "Route" : model.route.name
     }
 }
 
 // MARK: - Home
 
-private struct HomeList: View {
+private struct RouteHome: View {
     @Environment(AppModel.self) private var model
-    @Binding var detent: PresentationDetent
+    @State private var importing = false
+    var close: (() -> Void)? = nil
 
     var body: some View {
         List {
             Section {
                 Button {
                     model.startNewRoute()
+                    close?()
                 } label: {
                     Label("Plan a passage", systemImage: "point.topleft.down.to.point.bottomright.curvepath.fill")
                         .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
                 }
                 .buttonStyle(.glassProminent)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             } footer: {
-                Text("Or long-press anywhere on the chart to drop a start point.")
+                Text("Tap on the chart to drop waypoints and plan your route.")
             }
-
-            WeatherHereSection()
-
-            AnchorWatchSection()
-
-            TrackSection()
 
             if !model.savedRoutes.isEmpty {
                 Section("Saved routes") {
                     ForEach(model.savedRoutes) { route in
                         Button {
                             model.open(route)
-                            detent = .medium
                         } label: {
                             LabeledContent {
                                 Text("\(route.distanceNM, format: .number.precision(.fractionLength(1))) NM")
@@ -93,139 +91,29 @@ private struct HomeList: View {
                             }
                         }
                         .tint(.primary)
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                model.open(route)
+                                model.selectedTab = .chart
+                                close?()
+                            } label: {
+                                Label("Chart", systemImage: "map")
+                            }
+                            .tint(.blue)
+                        }
                     }
                     .onDelete { model.deleteRoutes(at: $0) }
                 }
             }
 
             Section {
+                Button("Import GPX…", systemImage: "square.and.arrow.down") { importing = true }
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.regions, id: \.id) { region in
-                        Text("Offline chart: \(region.name). \(region.attribution) Seamark symbols: OpenSeaMap. Weather: Open-Meteo.com.")
-                    }
-                    Text("Not for navigation. Always cross-check with official charts.")
-                        .fontWeight(.semibold)
-                }
+                Text("Routes, tracks and waypoints from other apps and plotters.")
             }
         }
-    }
-}
-
-private struct WeatherHereSection: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        Section {
-            if let forecast = model.localForecast, let series = forecast.points.first {
-                let now = series.conditions(at: .now)
-                let hours = (0...24).map { Date.now.addingTimeInterval(Double($0) * 3600) }
-                let outlook = hours.map { ($0, series.conditions(at: $0)) }
-                HStack(spacing: 14) {
-                    Image(systemName: "location.north.fill")
-                        .font(.title)
-                        .rotationEffect(.degrees(now.windFrom + 180))
-                        .foregroundStyle(WindScale.color(now.windSpeed))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(Int(now.windSpeed.rounded())) kn \(now.description)")
-                            .font(.title3.weight(.semibold))
-                        Text("From \(Geo.compassPoint(now.windFrom)) · gusts \(Int(now.gust.rounded())) kn"
-                             + (now.waveHeight.flatMap { $0 >= 0.1 ? String(format: " · waves %.1f m", $0) : nil } ?? ""))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        if let extras = extras(series) {
-                            Text(extras)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                Chart {
-                    ForEach(outlook, id: \.0) { time, c in
-                        AreaMark(x: .value("Time", time), yStart: .value("Wind", c.windSpeed), yEnd: .value("Gusts", c.gust))
-                            .foregroundStyle(.orange.opacity(0.25))
-                        LineMark(x: .value("Time", time), y: .value("Wind", c.windSpeed))
-                            .foregroundStyle(.tint)
-                            .interpolationMethod(.catmullRom)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
-                        AxisGridLine()
-                        AxisValueLabel(format: .dateTime.hour())
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine()
-                        AxisValueLabel { if let v = value.as(Double.self) { Text("\(Int(v))") } }
-                    }
-                }
-                .frame(height: 110)
-                let buraGust = outlook.filter { $0.1.isBura }.map(\.1.gust).max() ?? 0
-                if buraGust >= 25 {
-                    Label("Bura in the next 24 h, gusts to \(Int(buraGust.rounded())) kn", systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.orange)
-                }
-            } else {
-                Label {
-                    Text("Loading forecast…")
-                } icon: {
-                    ProgressView()
-                }
-                .foregroundStyle(.secondary)
-            }
-        } header: {
-            Text(model.location.location == nil ? "Weather · Rijeka" : "Weather here")
-        } footer: {
-            if let forecast = model.localForecast, let wind = forecast.windModels(from: .now, to: .now.addingTimeInterval(86400)).first?.model {
-                Text("Wind and gusts (kn), next 24 h · \(wind.label) · via \(forecast.source)")
-            }
-        }
-        .task(id: model.location.location == nil) { model.refreshLocalWeather() }
-    }
-
-    /// Air and sea temperature, pressure, wave period and rain now, where the data server has them.
-    private func extras(_ series: ForecastSeries) -> String? {
-        var parts: [String] = []
-        if let air = series.value(series.airTemp, at: .now) { parts.append("Air \(Int(air.rounded()))°") }
-        if let sea = series.value(series.seaTemp, at: .now) { parts.append("sea \(Int(sea.rounded()))°") }
-        if let pressure = series.value(series.pressure, at: .now) { parts.append("\(Int(pressure.rounded())) hPa") }
-        if let period = series.value(series.wavePeriod, at: .now), period > 0 { parts.append(String(format: "%.0f s period", period)) }
-        if let rain = series.value(series.precipitation, at: .now), rain >= 0.1 { parts.append(String(format: "rain %.1f mm/h", rain)) }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-}
-
-private struct TrackSection: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let tracker = model.location
-        Section {
-            if let started = tracker.recordingStarted {
-                LabeledContent("Logged", value: String(format: "%.2f NM", tracker.trackDistance))
-                LabeledContent("Since") {
-                    Text(started, style: tracker.isRecording ? .timer : .time)
-                }
-            }
-            Button {
-                tracker.toggleRecording()
-            } label: {
-                Label(tracker.isRecording ? "Stop recording" : "Record track",
-                      systemImage: tracker.isRecording ? "stop.circle.fill" : "record.circle")
-            }
-            .tint(tracker.isRecording ? .red : .accentColor)
-            if !tracker.isRecording && tracker.recordingStarted != nil {
-                Button("Clear track", role: .destructive) { tracker.clearTrack() }
-            }
-        } header: {
-            Text("Track")
-        } footer: {
-            if tracker.location == nil {
-                Text("Waiting for GPS…")
-            }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.gpx, .xml], allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first { model.importGPX(from: url) }
         }
     }
 }
@@ -244,14 +132,25 @@ private struct RouteList: View {
                         Button("Stop navigation", systemImage: "stop.fill", role: .destructive) { model.stopNavigation() }
                             .frame(maxWidth: .infinity)
                     } else {
-                        Button {
-                            model.startNavigation()
-                        } label: {
-                            Label("Start navigation", systemImage: "location.north.line.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, minHeight: 32)
+                        HStack(spacing: 12) {
+                            Button {
+                                model.startNavigation()
+                            } label: {
+                                Label("Start navigation", systemImage: "location.north.line.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 32)
+                            }
+                            .buttonStyle(.glassProminent)
+
+                            Button {
+                                model.selectedTab = .chart
+                            } label: {
+                                Label("Chart", systemImage: "map")
+                                    .font(.headline)
+                                    .frame(minHeight: 32)
+                            }
+                            .buttonStyle(.glass)
                         }
-                        .buttonStyle(.glassProminent)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                     }
@@ -282,7 +181,7 @@ private struct RouteList: View {
                     }
                 }
 
-                Section(model.route.mode == .automatic ? "Courses to steer" : "Legs") {
+                Section(model.route.mode != .manual ? "Courses to steer" : "Legs") {
                     ForEach(plan.legs) { leg in
                         LegRow(leg: leg, isLast: leg.index == plan.legs.count - 1, sailing: model.boat.propulsion == .sail,
                                hazard: model.legHazards.indices.contains(leg.index) ? model.legHazards[leg.index] : nil)
@@ -311,7 +210,10 @@ private struct RouteList: View {
             Section {
                 TextField("Route name", text: $model.route.name)
                 if !model.isEditing {
-                    Button("Edit waypoints", systemImage: "pencil") { model.isEditing = true }
+                    Button("Edit waypoints", systemImage: "pencil") {
+                        model.isEditing = true
+                        model.selectedTab = .chart
+                    }
                 }
                 Button("Reverse route", systemImage: "arrow.left.arrow.right") { model.reverseRoute() }
                     .disabled(model.route.waypoints.count < 2)
@@ -379,7 +281,7 @@ private struct RoutingStatus: View {
             EmptyView()
         case .routing:
             Label {
-                Text("Finding a safe route…")
+                Text(model.route.mode == .weather ? "Finding the fastest safe route…" : "Finding a safe route…")
             } icon: {
                 ProgressView()
             }
@@ -387,6 +289,20 @@ private struct RoutingStatus: View {
             .foregroundStyle(.secondary)
         case .routed(let shallowEnds):
             VStack(alignment: .leading, spacing: 6) {
+                if model.route.mode == .weather {
+                    if let fastest = model.weatherRouting {
+                        Label("Fastest in the forecast wind: \(fastest.saved.hoursMinutes) quicker than the shortest route" +
+                              (fastest.tacks > 0 ? ", \(fastest.tacks) \(fastest.tacks == 1 ? "tack or gybe" : "tacks or gybes")" : ""),
+                              systemImage: "wind")
+                            .foregroundStyle(.tint)
+                    } else if model.boat.propulsion == .motor {
+                        Label("Fastest routing is for sailing boats; showing the shortest route.", systemImage: "info.circle")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("In this wind the shortest route is also the fastest.", systemImage: "wind")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Label("Avoids land, charted rocks and wrecks, and water under \(safety)", systemImage: "checkmark.shield")
                     .foregroundStyle(.green)
                 if !shallowEnds.isEmpty {

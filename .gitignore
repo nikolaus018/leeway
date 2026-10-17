@@ -9,3 +9,4 @@ tools/.overpass-cache/
 __pycache__/
 server/target/
 server/cache/
+tools/.osm-cache/

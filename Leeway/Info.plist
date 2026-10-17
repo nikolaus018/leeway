@@ -26,7 +26,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Leeway can use a data server on your local network, for example one on board.</string>
+	<string>Leeway connects to your boat's instruments and AIS over Wi-Fi, and can use a data server on board.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Leeway keeps recording your track while the screen is off.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -56,6 +56,30 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.xml</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>GPS Exchange Format</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.topografix.gpx</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>gpx</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/gpx+xml</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>
