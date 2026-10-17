@@ -18,8 +18,9 @@ device, an account, a boat or a decision.
 - [ ] **Offline:** download the chart pack, switch to airplane mode, pan and zoom, route, search a harbour.
 - [ ] **Rain radar:** the server now serves the NEXRAD colour scheme (green to red); check it is visible on the
       chart and that old frames are gone.
-- [ ] **Crashes:** MapLibre crashed once in its tile worker (a segfault) when the first dense chart pack was
-      loaded, and has not recurred. Watch TestFlight crash reports for it.
+- [ ] **Crashes:** two MapLibre worker-thread aborts were logged in the simulator (same stack), at the moments
+      the app was force-terminated from the command line while tiles were loading. They look like shutdown
+      artifacts, not something a user can hit, but watch TestFlight crash reports for the same stack.
 - [ ] **Accessibility:** a VoiceOver pass, Reduce Motion, the largest Dynamic Type size, landscape.
 
 ## 2. Test with a real boat

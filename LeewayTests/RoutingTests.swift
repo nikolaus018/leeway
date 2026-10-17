@@ -51,6 +51,14 @@ private func steadyWind(from direction: Double, knots: Double) -> WindField {
         }
     }
 
+    @Test func warnsWhenARouteLeavesTheChart() {
+        let inside = [coordinate(45.2, 14.4), coordinate(45.0, 14.4)]
+        #expect(Router.notes(for: inside, rules: rules).allSatisfy { !$0.contains("outside the detailed chart") })
+        // Far east of the Adriatic pack.
+        let outside = [coordinate(45.2, 14.4), coordinate(45.2, 19.6)]
+        #expect(Router.notes(for: outside, rules: rules).contains { $0.contains("outside the detailed chart") })
+    }
+
     @Test func fastestRouteTacksUpwindAndStaysClear() throws {
         // Open water south of Rijeka, finish dead upwind in a northerly.
         let start = coordinate(45.20, 14.38), goal = coordinate(45.29, 14.38)

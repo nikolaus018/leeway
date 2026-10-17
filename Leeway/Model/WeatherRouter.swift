@@ -15,6 +15,8 @@ nonisolated struct WindField: Sendable {
         lat0 = lats.min()!; lon0 = lons.min()!; step = grid.step
         rows = Int(((lats.max()! - lat0) / step).rounded()) + 1
         cols = Int(((lons.max()! - lon0) / step).rounded()) + 1
+        // A corridor is small; refuse a grid so big that a wrong answer from the server could eat the memory.
+        guard rows > 0, cols > 0, rows * cols * grid.times.count <= 4_000_000 else { return nil }
         times = grid.times
         var u = [[Float]](repeating: [Float](repeating: .nan, count: rows * cols), count: times.count)
         var v = u

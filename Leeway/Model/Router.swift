@@ -387,6 +387,10 @@ nonisolated enum Router {
     /// Things the skipper should know about a planned path, e.g. bridges whose clearance isn't charted.
     static func notes(for path: [CLLocationCoordinate2D], rules: NavigationRules) -> [String] {
         var notes: [String] = []
+        // Land, depths and dangers are only known inside the chart pack: say so rather than imply safety.
+        if path.contains(where: { !rules.region.contains($0) }) {
+            notes.append("Part of this route is outside the detailed chart: land, depths and dangers there are not checked.")
+        }
         for bridge in rules.region.bridges {
             guard zip(path, path.dropFirst()).contains(where: { crosses($0.0, $0.1, bridge.coordinates) }) else { continue }
             let air = String(format: "%.0f m", rules.airDraft)

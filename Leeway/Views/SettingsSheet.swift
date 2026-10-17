@@ -31,13 +31,14 @@ struct SettingsSheet: View {
                     Stepper(value: $model.alarms.cpaMinutes, in: 5...60, step: 5) {
                         LabeledContent("Within", value: "\(Int(model.alarms.cpaMinutes)) min")
                     }
+                    Toggle(isOn: $model.alarms.shallowAlarm) { Label("Shallow-water alarm", systemImage: "water.waves") }
                     Stepper(value: $model.alarms.crossTrack, in: 0.02...0.5, step: 0.02) {
                         LabeledContent("Off-track warning", value: "\(Int((model.alarms.crossTrack * 1852).rounded())) m")
                     }
                 } header: {
                     Text("Alarms")
                 } footer: {
-                    Text("Ships that will pass closer than this turn red and sound the alarm. The anchor alarm is set in Log.")
+                    Text("Ships that will pass closer than this turn red and sound the alarm. The shallow-water alarm sounds under way when the sounder or the chart shows less than your draft plus half a metre. The anchor alarm is set in Log.")
                 }
 
                 Section {

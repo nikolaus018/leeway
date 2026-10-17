@@ -67,11 +67,21 @@ impl Limiter {
     }
 }
 
-/// The forwarding headers are only believed from a local proxy (the tunnel); a direct client could
+/// The forwarding headers are only believed from a local proxy (the tunnel, on this machine or its private
+/// network); a direct client could
 /// otherwise send a fresh address with every request and never run out of tokens.
+/// This machine or its private network: where a tunnel or reverse proxy sits (loopback, or a container
+/// bridge), never the open internet.
+fn is_local(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
+        IpAddr::V6(v6) => v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00 || (v6.segments()[0] & 0xffc0) == 0xfe80,
+    }
+}
+
 pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<IpAddr> {
     let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
-    let from_proxy = peer.is_none_or(|p| p.ip().is_loopback());
+    let from_proxy = peer.is_none_or(|p| is_local(p.ip()));
     from_proxy
         .then(|| {
             header("cf-connecting-ip")
@@ -119,6 +129,20 @@ mod tests {
         // Separate allowance for API calls, and per client.
         assert!(limiter.take(ip, false).is_ok());
         assert!(limiter.take("10.0.0.2".parse().unwrap(), true).is_ok());
+    }
+
+    #[test]
+    fn forwarding_headers_only_from_a_local_proxy() {
+        let mut headers = HeaderMap::new();
+        headers.insert("cf-connecting-ip", "3.3.3.3".parse().unwrap());
+        // From the tunnel on this machine: believed.
+        let local: SocketAddr = "127.0.0.1:5000".parse().unwrap();
+        assert_eq!(client_ip(&headers, Some(local)), Some("3.3.3.3".parse().unwrap()));
+        // From anywhere else: the peer's own address, whatever the header says.
+        let docker: SocketAddr = "172.17.0.1:5000".parse().unwrap();
+        assert_eq!(client_ip(&headers, Some(docker)), Some("3.3.3.3".parse().unwrap()));
+        let remote: SocketAddr = "198.51.100.7:5000".parse().unwrap();
+        assert_eq!(client_ip(&headers, Some(remote)), Some("198.51.100.7".parse().unwrap()));
     }
 
     #[test]
