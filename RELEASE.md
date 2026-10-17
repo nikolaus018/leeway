@@ -9,6 +9,10 @@ device, an account, a boat or a decision.
 - [ ] **Alarms in the background:** anchor alarm, collision alarm, shallow-water alarm and man overboard ring
       with the app backgrounded and the phone locked; the notification arrives. Note: `.defaultCritical`
       sounds need Apple's Critical Alerts entitlement, or they play as ordinary notifications.
+- [ ] **New safety behaviour to confirm outdoors:** the anchor watch now raises a "GPS signal lost" alarm after two
+      minutes without a fix, and uses a weak GPS fix when it still puts the boat clearly outside the circle; the
+      MOB button sounds the alarm even before the first GPS fix; routes that leave the chart pack carry a warning
+      note; the shallow-water alarm has its own switch in Settings.
 - [ ] **Boat arrow:** points along the course when moving and along the compass when still (the simulator has
       no heading).
 - [ ] **Double-tap-and-drag zoom:** dragging up zooms in. This replaces MapLibre's own gesture and I could not
