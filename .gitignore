@@ -4,3 +4,4 @@ build/
 .venv/
 tools/*-preview.png
 tools/.overpass-cache/
+__pycache__/
