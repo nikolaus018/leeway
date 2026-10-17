@@ -18,6 +18,7 @@ struct ContentView: View {
             track: model.location.track,
             samples: model.plan?.samples ?? [],
             legLabels: legLabels,
+            underway: underwayMap,
             inspected: model.inspection?.coordinate,
             isEditing: model.isEditing,
             tracking: model.tracking,
@@ -34,8 +35,18 @@ struct ContentView: View {
         }
         .overlay(alignment: .top) {
             VStack(alignment: .leading, spacing: 10) {
+                if model.underway.anchorAlarm {
+                    AnchorAlarmBanner()
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 HStack(alignment: .top, spacing: 10) {
-                    if model.isEditing {
+                    if model.underway.mob != nil {
+                        MOBPanel()
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    } else if model.underway.isNavigating {
+                        NavigationPanel()
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    } else if model.isEditing {
                         EditingBanner()
                             .transition(.move(edge: .top).combined(with: .opacity))
                     } else if model.location.location != nil {
@@ -43,7 +54,10 @@ struct ContentView: View {
                             .transition(.opacity)
                     }
                     Spacer(minLength: 0)
-                    MapControls()
+                    VStack(spacing: 10) {
+                        MapControls()
+                        MOBButton()
+                    }
                 }
                 ScaleBar(metresPerPoint: model.camera.metresPerPoint)
                 if let inspection = model.inspection, !model.isEditing {
@@ -56,6 +70,9 @@ struct ContentView: View {
         }
         .animation(.smooth, value: model.isEditing)
         .animation(.smooth, value: model.inspection)
+        .animation(.smooth, value: model.underway.isNavigating)
+        .animation(.smooth, value: model.underway.mob?.time)
+        .animation(.smooth, value: model.underway.anchorAlarm)
         .sheet(isPresented: .constant(true)) {
             PlannerSheet(detent: $detent)
                 .presentationDetents([.collapsed, .medium, .large], selection: $detent)
@@ -66,11 +83,36 @@ struct ContentView: View {
         .onChange(of: model.isEditing) { _, editing in
             if editing { detent = .collapsed }
         }
+        .onChange(of: model.underway.isNavigating) { _, navigating in
+            if navigating { detent = .collapsed }
+        }
         .task { model.location.start() }
     }
 }
 
 private extension ContentView {
+    var underwayMap: UnderwayMapState {
+        let underway = model.underway
+        let fix = model.location.location
+        var state = UnderwayMapState()
+        state.boat = fix.map { .init($0.coordinate) }
+        state.cog = model.location.cog
+        state.sog = model.location.sog
+        if let leg = underway.activeLegPoints {
+            state.activeLeg = [.init(leg.0), .init(leg.1)]
+            state.next = .init(leg.1)
+            state.ahead = underway.pointsAhead.map(UnderwayMapState.Point.init)
+        }
+        state.mob = underway.mob.map { .init($0.coordinate) }
+        if let anchor = underway.anchor {
+            state.anchor = .init(anchor.coordinate)
+            state.anchorRadius = anchor.radius
+            state.anchorAlarm = underway.anchorAlarm
+            state.swing = underway.swing.map(UnderwayMapState.Point.init)
+        }
+        return state
+    }
+
     /// "128° 4.2 NM" at the middle of each leg worth labelling.
     var legLabels: [LegAnnotationData] {
         guard let plan = model.plan, !model.isEditing else { return [] }

@@ -216,3 +216,63 @@ final class LegLabelView: MKAnnotationView {
         label.frame = bounds
     }
 }
+
+/// What the map draws for underway mode, compared each update so overlays only change when needed.
+struct UnderwayMapState: Equatable {
+    struct Point: Equatable {
+        var latitude: Double
+        var longitude: Double
+        init(_ c: CLLocationCoordinate2D) { latitude = c.latitude; longitude = c.longitude }
+        var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
+    }
+    var boat: Point?
+    var cog: Double?
+    var sog: Double?
+    var activeLeg: [Point] = []
+    /// The rest of the route after the active leg.
+    var ahead: [Point] = []
+    var next: Point?
+    var mob: Point?
+    var anchor: Point?
+    var anchorRadius = 0.0
+    var anchorAlarm = false
+    var swing: [Point] = []
+}
+
+final class AnchorAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    init(_ coordinate: CLLocationCoordinate2D) { self.coordinate = coordinate }
+}
+
+final class MOBAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    init(_ coordinate: CLLocationCoordinate2D) { self.coordinate = coordinate }
+}
+
+/// A round badge with a glyph: the anchor and the MOB mark.
+final class BadgeView: MKAnnotationView {
+    static let reuseID = "badge"
+    private let label = UILabel()
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        label.textAlignment = .center
+        addSubview(label)
+        displayPriority = .required
+        isUserInteractionEnabled = false
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(text: String, fill: UIColor, textColor: UIColor, size: CGFloat) {
+        bounds = CGRect(x: 0, y: 0, width: size, height: size)
+        layer.cornerRadius = size / 2
+        layer.borderWidth = 2
+        layer.borderColor = UIColor.white.cgColor
+        backgroundColor = fill
+        label.frame = bounds
+        label.text = text
+        label.textColor = textColor
+        label.font = .systemFont(ofSize: size * 0.42, weight: .heavy)
+    }
+}

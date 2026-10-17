@@ -21,6 +21,11 @@ final class LocationTracker {
         return l.course
     }
 
+    /// Called with every new fix (navigation, MOB and anchor watch listen here).
+    var onUpdate: ((CLLocation) -> Void)?
+    /// Keep receiving fixes with the screen off (navigation, anchor watch, MOB).
+    var keepAlive = false { didSet { updateBackgroundSession() } }
+
     private var updates: Task<Void, Never>?
     private var session: CLServiceSession?
     private var background: CLBackgroundActivitySession?
@@ -41,14 +46,25 @@ final class LocationTracker {
     func toggleRecording() {
         if isRecording {
             isRecording = false
-            background?.invalidate()
-            background = nil
         } else {
             track = location.map { [$0.coordinate] } ?? []
             trackDistance = 0
             recordingStarted = .now
             isRecording = true
-            background = CLBackgroundActivitySession()
+        }
+        updateBackgroundSession()
+    }
+
+    func startRecordingIfNeeded() {
+        if !isRecording { toggleRecording() }
+    }
+
+    private func updateBackgroundSession() {
+        let needed = isRecording || keepAlive
+        if needed, background == nil { background = CLBackgroundActivitySession() }
+        if !needed {
+            background?.invalidate()
+            background = nil
         }
     }
 
@@ -61,6 +77,7 @@ final class LocationTracker {
 
     private func receive(_ new: CLLocation) {
         location = new
+        onUpdate?(new)
         guard isRecording, new.horizontalAccuracy >= 0, new.horizontalAccuracy < 50 else { return }
         if let last = track.last {
             let moved = Geo.distanceNM(last, new.coordinate)

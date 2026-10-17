@@ -67,6 +67,8 @@ private struct HomeList: View {
 
             WeatherHereSection()
 
+            AnchorWatchSection()
+
             TrackSection()
 
             if !model.savedRoutes.isEmpty {
@@ -213,6 +215,26 @@ private struct RouteList: View {
     var body: some View {
         @Bindable var model = model
         List {
+            if model.plan != nil && !model.isEditing {
+                Section {
+                    if model.underway.isNavigating {
+                        Button("Stop navigation", systemImage: "stop.fill", role: .destructive) { model.stopNavigation() }
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Button {
+                            model.startNavigation()
+                        } label: {
+                            Label("Start navigation", systemImage: "location.north.line.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 32)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                    }
+                }
+            }
+
             Section {
                 SummaryRow()
                 Picker("Routing", selection: $model.routingMode) {

@@ -16,6 +16,7 @@ struct ChartMapView: UIViewRepresentable {
     var track: [CLLocationCoordinate2D]
     var samples: [PassageSample]
     var legLabels: [LegAnnotationData]
+    var underway: UnderwayMapState
     var inspected: CLLocationCoordinate2D?
     var isEditing: Bool
     var tracking: AppModel.UserTracking
@@ -59,6 +60,7 @@ struct ChartMapView: UIViewRepresentable {
         map.register(HarbourView.self, forAnnotationViewWithReuseIdentifier: HarbourView.reuseID)
         map.register(InspectView.self, forAnnotationViewWithReuseIdentifier: InspectView.reuseID)
         map.register(LegLabelView.self, forAnnotationViewWithReuseIdentifier: LegLabelView.reuseID)
+        map.register(BadgeView.self, forAnnotationViewWithReuseIdentifier: BadgeView.reuseID)
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         tap.delegate = context.coordinator
@@ -86,6 +88,7 @@ struct ChartMapView: UIViewRepresentable {
         c.syncTrack(track, on: map)
         c.syncSamples(samples, on: map)
         c.syncLegLabels(legLabels, on: map)
+        c.syncUnderway(underway, on: map)
         c.syncInspected(inspected, on: map)
         c.applyTracking(tracking, to: map)
         if c.lastFitRequest != fitRouteRequest {
@@ -248,6 +251,57 @@ struct ChartMapView: UIViewRepresentable {
 
         private var drawnLegLabels: [LegAnnotationData] = []
 
+        // MARK: Underway
+
+        private enum LineStyle { case activeLeg, ahead, bearing, cog, mob, swing }
+        private var drawnUnderway = UnderwayMapState()
+        private var underwayOverlays: [MKOverlay] = []
+        private var underwayAnnotations: [MKAnnotation] = []
+        private var lineStyles: [ObjectIdentifier: LineStyle] = [:]
+        private var anchorAlarmShown = false
+        /// The planned route is already drawn when the planner still has it; otherwise draw what's left from navigation.
+        private var drawnPathIsEmpty: Bool { drawnPath.isEmpty }
+
+        func syncUnderway(_ state: UnderwayMapState, on map: MKMapView) {
+            guard state != drawnUnderway else { return }
+            let annotationsChanged = state.mob != drawnUnderway.mob || state.anchor != drawnUnderway.anchor
+                || state.anchorAlarm != drawnUnderway.anchorAlarm
+            drawnUnderway = state
+            map.removeOverlays(underwayOverlays)
+            underwayOverlays = []
+            lineStyles = [:]
+            anchorAlarmShown = state.anchorAlarm
+
+            func line(_ points: [CLLocationCoordinate2D], _ style: LineStyle) {
+                guard points.count >= 2 else { return }
+                let polyline = MKPolyline(coordinates: points, count: points.count)
+                lineStyles[ObjectIdentifier(polyline)] = style
+                underwayOverlays.append(polyline)
+            }
+            if state.ahead.count >= 2, state.activeLeg.isEmpty == false, drawnPathIsEmpty { line(state.ahead.map(\.coordinate), .ahead) }
+            if state.activeLeg.count == 2 { line(state.activeLeg.map(\.coordinate), .activeLeg) }
+            if let boat = state.boat {
+                if let next = state.next { line([boat.coordinate, next.coordinate], .bearing) }
+                if let mob = state.mob { line([boat.coordinate, mob.coordinate], .mob) }
+                // Where the boat will be in 6 minutes on its current course and speed.
+                if let cog = state.cog, let sog = state.sog, sog > 0.3 {
+                    line([boat.coordinate, Geo.destination(from: boat.coordinate, bearing: cog, distanceNM: sog / 10)], .cog)
+                }
+            }
+            if let anchor = state.anchor {
+                underwayOverlays.append(MKCircle(center: anchor.coordinate, radius: state.anchorRadius))
+                line(state.swing.map(\.coordinate), .swing)
+            }
+            map.addOverlays(underwayOverlays, level: .aboveLabels)
+
+            guard annotationsChanged else { return }
+            map.removeAnnotations(underwayAnnotations)
+            underwayAnnotations = []
+            if let anchor = state.anchor { underwayAnnotations.append(AnchorAnnotation(anchor.coordinate)) }
+            if let mob = state.mob { underwayAnnotations.append(MOBAnnotation(mob.coordinate)) }
+            map.addAnnotations(underwayAnnotations)
+        }
+
         func syncLegLabels(_ labels: [LegAnnotationData], on map: MKMapView) {
             guard labels != drawnLegLabels else { return }
             drawnLegLabels = labels
@@ -343,6 +397,42 @@ struct ChartMapView: UIViewRepresentable {
                 renderer.dark = mapView.traitCollection.userInterfaceStyle == .dark
                 return renderer
             }
+            if let circle = overlay as? MKCircle {
+                let renderer = MKCircleRenderer(circle: circle)
+                let colour: UIColor = anchorAlarmShown ? .systemRed : .systemPurple
+                renderer.strokeColor = colour
+                renderer.fillColor = colour.withAlphaComponent(0.1)
+                renderer.lineWidth = 2
+                renderer.lineDashPattern = [6, 4]
+                return renderer
+            }
+            if let line = overlay as? MKPolyline, let style = lineStyles[ObjectIdentifier(line)] {
+                let renderer = MKPolylineRenderer(polyline: line)
+                renderer.lineCap = .round
+                switch style {
+                case .activeLeg:
+                    renderer.strokeColor = .systemPink
+                    renderer.lineWidth = 6
+                case .ahead:
+                    renderer.strokeColor = UIColor.systemPink.withAlphaComponent(0.6)
+                    renderer.lineWidth = 3
+                case .bearing:
+                    renderer.strokeColor = .systemPink
+                    renderer.lineWidth = 2
+                    renderer.lineDashPattern = [6, 5]
+                case .cog:
+                    renderer.strokeColor = mapView.traitCollection.userInterfaceStyle == .dark ? .white : .black
+                    renderer.lineWidth = 2.5
+                case .mob:
+                    renderer.strokeColor = .systemRed
+                    renderer.lineWidth = 3
+                    renderer.lineDashPattern = [8, 5]
+                case .swing:
+                    renderer.strokeColor = UIColor.systemPurple.withAlphaComponent(0.7)
+                    renderer.lineWidth = 1.5
+                }
+                return renderer
+            }
             if let line = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: line)
                 if line === trackLine {
@@ -377,6 +467,14 @@ struct ChartMapView: UIViewRepresentable {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: HarbourView.reuseID, for: mark) as! HarbourView
                 view.configure(mark.seamark)
                 return view
+            case is AnchorAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: BadgeView.reuseID, for: annotation) as! BadgeView
+                view.configure(text: "⚓︎", fill: anchorAlarmShown ? .systemRed : .systemPurple, textColor: .white, size: 30)
+                return view
+            case is MOBAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: BadgeView.reuseID, for: annotation) as! BadgeView
+                view.configure(text: "MOB", fill: .systemRed, textColor: .white, size: 40)
+                return view
             case let leg as LegAnnotation:
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: LegLabelView.reuseID, for: leg) as! LegLabelView
                 view.configure(leg.text)
@@ -408,6 +506,17 @@ struct ChartMapView: UIViewRepresentable {
             }
         }
 
+        private var followedFirstFix = false
+
+        /// A follow request made before the first GPS fix is lost; repeat it once the boat shows up.
+        func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+            guard !followedFirstFix, userLocation.location != nil else { return }
+            followedFirstFix = true
+            guard currentTracking != .none, mapView.userTrackingMode == .none else { return }
+            let mode: MKUserTrackingMode = currentTracking == .heading ? .followWithHeading : .follow
+            mapView.setUserTrackingMode(mode, animated: true)
+        }
+
         func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
             let tracking: AppModel.UserTracking = switch mode {
             case .follow: .follow
@@ -415,6 +524,8 @@ struct ChartMapView: UIViewRepresentable {
             default: .none
             }
             guard tracking != currentTracking else { return }
+            // MapKit drops a follow request it can't honour yet (no fix); keep ours until the first fix.
+            if tracking == .none && !followedFirstFix { return }
             currentTracking = tracking
             // Panning the map drops follow mode; mirror that back into the model.
             DispatchQueue.main.async { self.parent.onTrackingChange(tracking) }

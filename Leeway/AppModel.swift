@@ -1,5 +1,6 @@
 import CoreLocation
 import Observation
+import UIKit
 
 @Observable
 final class AppModel {
@@ -75,7 +76,9 @@ final class AppModel {
 
     /// Offline charts; loaded in the background at launch (the Adriatic grid is ~40 MB).
     private(set) var regions: [ChartRegion] = []
+    private var chartsLoaded = false
     let location = LocationTracker()
+    let underway = Underway()
     /// Bumped to ask the map to frame the route.
     private(set) var fitRouteRequest = 0
     var tracking = UserTracking.none
@@ -98,8 +101,13 @@ final class AppModel {
         showGrid = Self.load("grid") ?? false
         Task {
             regions = await Task.detached(priority: .userInitiated) { ChartRegion.bundled() }.value
+            chartsLoaded = true
             routeChanged()
         }
+        location.onUpdate = { [weak self] fix in self?.underway.update(with: fix) }
+        syncUnderway()
+        // Picking up where we left off (navigating, at anchor, MOB): show the boat.
+        if underway.needsBackground { tracking = .follow }
         #if DEBUG
         loadDebugRoute()
         #endif
@@ -209,6 +217,50 @@ final class AppModel {
 
     var isRouteSaved: Bool { savedRoutes.contains { $0 == route } }
 
+    // MARK: Underway
+
+    func startNavigation() {
+        guard path.count >= 2 else { return }
+        isEditing = false
+        inspection = nil
+        underway.startNavigation(along: path, from: location.location)
+        location.startRecordingIfNeeded()
+        tracking = .follow
+        syncUnderway()
+    }
+
+    func stopNavigation() {
+        underway.stopNavigation()
+        syncUnderway()
+    }
+
+    func manOverboard() {
+        underway.manOverboard()
+        tracking = .follow
+        syncUnderway()
+    }
+
+    func cancelMOB() {
+        underway.cancelMOB()
+        syncUnderway()
+    }
+
+    func dropAnchor(radius: Double) {
+        underway.dropAnchor(radius: radius)
+        syncUnderway()
+    }
+
+    func liftAnchor() {
+        underway.liftAnchor()
+        syncUnderway()
+    }
+
+    /// Background location and an always-on screen while navigating, at anchor or after a MOB.
+    private func syncUnderway() {
+        location.keepAlive = underway.needsBackground
+        UIApplication.shared.isIdleTimerDisabled = underway.isNavigating || underway.mob != nil
+    }
+
     // MARK: Chart
 
     func region(containing points: [CLLocationCoordinate2D]) -> ChartRegion? {
@@ -237,6 +289,12 @@ final class AppModel {
             useStraightLegs(points, in: region)
             routingState = points.count >= 2 ? .manual : .idle
             planChanged()
+            return
+        }
+        guard chartsLoaded else {
+            // Charts still loading: plan once they're in.
+            useStraightLegs(points, in: nil)
+            routingState = .routing
             return
         }
         guard let region else {

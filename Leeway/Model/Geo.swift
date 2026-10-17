@@ -55,6 +55,17 @@ nonisolated enum Geo {
         return CLLocationCoordinate2D(latitude: φ2.degrees, longitude: λ2.degrees)
     }
 
+    /// Distance of `point` from the great circle a→b (NM, positive = right of track / starboard)
+    /// and how far along a→b it is (NM, negative = behind a).
+    static func crossTrack(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D, point p: CLLocationCoordinate2D) -> (cross: Double, along: Double) {
+        let δ13 = distanceNM(a, p) / earthRadiusNM
+        let θ13 = bearing(a, p).radians, θ12 = bearing(a, b).radians
+        let δxt = asin(max(-1, min(1, sin(δ13) * sin(θ13 - θ12))))
+        var δat = acos(max(-1, min(1, cos(δ13) / max(cos(δxt), 1e-12))))
+        if cos(θ13 - θ12) < 0 { δat = -δat }
+        return (δxt * earthRadiusNM, δat * earthRadiusNM)
+    }
+
     static func length(of path: [CLLocationCoordinate2D]) -> Double {
         zip(path, path.dropFirst()).reduce(0) { $0 + distanceNM($1.0, $1.1) }
     }
