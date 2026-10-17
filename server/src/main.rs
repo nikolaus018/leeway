@@ -439,6 +439,18 @@ fn tile_path(z: u32, x: u32, y: &str, ext: &str) -> Result<(u32, u32, u32), ApiE
     Ok((z, x, y))
 }
 
+/// A 1×1 transparent PNG.
+const TRANSPARENT_PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01,
+    0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0B, 0x49, 0x44, 0x41,
+    0x54, 0x78, 0x9C, 0x63, 0x60, 0x00, 0x02, 0x00, 0x00, 0x05, 0x00, 0x01, 0x7A, 0x5E, 0xAB, 0x3F, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+fn transparent(headers: &HeaderMap) -> Response {
+    http::bytes(headers, bytes::Bytes::from_static(TRANSPARENT_PNG), "\"transparent\"", "image/png", Policy::TILE)
+}
+
 fn tile_response(headers: &HeaderMap, blob: &Blob, content_type: &'static str, policy: Policy) -> Response {
     if blob.is_empty() {
         return http::empty(policy);
@@ -462,10 +474,15 @@ async fn seamark_tile(
     if z > tiles::MAX_ZOOM {
         return Err(ApiError::not_found());
     }
+    // Empty tiles are a transparent image, not "204 No Content": map engines keep showing a
+    // stretched parent tile where a child has no content.
     if q.skip.as_deref().is_some_and(|spec| tiles::covered(z, x, y, &tiles::parse_skip(spec))) {
-        return Ok(http::empty(Policy::TILE));
+        return Ok(transparent(&headers));
     }
     let blob = state.seamarks.tile(z, x, y).await?;
+    if blob.is_empty() {
+        return Ok(transparent(&headers));
+    }
     Ok(tile_response(&headers, &blob, "image/png", Policy::TILE))
 }
 

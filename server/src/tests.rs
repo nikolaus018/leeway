@@ -261,3 +261,18 @@ async fn base_map_and_bathymetry_tiles() {
     assert!(!covered[16 * 8 + 12]);
     assert_eq!(reqwest::get(format!("{base}/v1/tiles/bathy/13/0/0.pbf")).await.unwrap().status(), 404);
 }
+
+#[tokio::test]
+async fn empty_seamark_tiles_are_transparent_images() {
+    let upstream = fake_upstream(Arc::new(AtomicUsize::new(0))).await;
+    let cache = tempfile::tempdir().unwrap();
+    let base = server(&upstream, cache.path()).await;
+    let skipped = reqwest::get(format!("{base}/v1/tiles/seamark/10/553/367.png?skip=13.2,42.2,19.0,45.57")).await.unwrap();
+    assert_eq!(skipped.status(), 200);
+    let png = skipped.bytes().await.unwrap();
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(png.to_vec())).read_info().unwrap();
+    let mut buffer = vec![0; decoder.output_buffer_size().unwrap()];
+    let info = decoder.next_frame(&mut buffer).unwrap();
+    assert_eq!((info.width, info.height), (1, 1));
+    assert_eq!(buffer[3], 0, "fully transparent");
+}

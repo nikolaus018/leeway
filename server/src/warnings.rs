@@ -1,6 +1,7 @@
 //! Official weather warnings from MeteoAlarm (the national weather services' CAP feeds), refreshed in
 //! the background so app requests never wait on them. English texts come from each CAP message.
-//! MeteoAlarm areas have no coordinates in the feeds, so warnings are matched to the map by country.
+//! The feeds name areas by EMMA_ID code only; their outlines (MeteoAlarm/EUMETNET, CC0) are fetched
+//! once per code and cached, so warnings are matched to the map by area, and the app can draw them.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -50,10 +51,23 @@ pub struct Warning {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction: Option<String>,
-    /// MeteoAlarm areas have no geometry in the public feeds.
-    pub polygon: Option<Vec<[f64; 2]>>,
+    /// The area's outline(s), lon/lat, simplified; absent when unknown.
+    pub polygon: Option<Vec<Vec<[f64; 2]>>>,
     #[serde(skip)]
     cap_url: Option<String>,
+    /// MeteoAlarm EMMA_ID of the area.
+    #[serde(skip)]
+    code: Option<String>,
+    /// west, south, east, north of the area, when its outline is known.
+    #[serde(skip)]
+    bbox: Option<[f64; 4]>,
+}
+
+/// An area outline: rings and their bounding box.
+#[derive(Clone, Debug)]
+struct Area {
+    rings: Vec<Vec<[f64; 2]>>,
+    bbox: [f64; 4],
 }
 
 #[derive(Default)]
@@ -62,6 +76,10 @@ pub struct Warnings {
     current: RwLock<HashMap<String, Vec<Warning>>>,
     /// CAP details already fetched, by warning id: (level, kind, description, instruction).
     details: RwLock<HashMap<String, Details>>,
+    /// Outlines by EMMA_ID (`None`: looked up, none published).
+    areas: RwLock<HashMap<String, Option<Area>>>,
+    cache_dir: Option<std::path::PathBuf>,
+    area_url: String,
 }
 
 #[derive(Clone, Default)]
@@ -74,7 +92,11 @@ struct Details {
 
 impl Warnings {
     pub fn start(http: reqwest::Client, config: Arc<Config>) -> Arc<Self> {
-        let warnings = Arc::new(Warnings::default());
+        let warnings = Arc::new(Warnings {
+            cache_dir: Some(config.cache_dir.join("warning-areas")),
+            area_url: config.warning_areas_url.clone(),
+            ..Default::default()
+        });
         if config.warnings_url.is_empty() {
             return warnings;
         }
@@ -116,6 +138,12 @@ impl Warnings {
             warning.kind = details.kind;
             warning.description = details.description;
             warning.instruction = details.instruction;
+            if let Some(code) = warning.code.clone() {
+                if let Some(area) = self.area(http, &code).await {
+                    warning.bbox = Some(area.bbox);
+                    warning.polygon = Some(area.rings);
+                }
+            }
         }
         let n = found.len();
         let ids: Vec<String> = found.iter().map(|w| w.id.clone()).collect();
@@ -128,13 +156,47 @@ impl Warnings {
         Ok(n)
     }
 
-    /// Current warnings for countries overlapping the box, most severe first.
+    /// The outline of an EMMA_ID area, from memory, disk, or the published geometry.
+    async fn area(&self, http: &reqwest::Client, code: &str) -> Option<Area> {
+        if let Some(known) = self.areas.read().await.get(code) {
+            return known.clone();
+        }
+        if code.is_empty() || !code.chars().all(|c| c.is_ascii_alphanumeric()) || self.area_url.is_empty() {
+            return None;
+        }
+        let file = self.cache_dir.as_ref().map(|d| d.join(format!("{code}.geojson")));
+        let mut data = match &file {
+            Some(f) => tokio::fs::read(f).await.ok(),
+            None => None,
+        };
+        if data.is_none() {
+            let url = self.area_url.replace("{code}", code);
+            if let Ok(response) = http.get(&url).send().await {
+                match response.status().as_u16() {
+                    200 => data = response.bytes().await.ok().map(|b| b.to_vec()),
+                    404 => data = Some(Vec::new()),
+                    _ => return None, // try again next refresh
+                }
+                if let (Some(f), Some(d)) = (&file, &data) {
+                    crate::cache::write(f, d).await;
+                }
+            }
+        }
+        let area = data.and_then(|d| parse_area(&d));
+        self.areas.write().await.insert(code.to_string(), area.clone());
+        area
+    }
+
+    /// Current warnings whose area overlaps the box (or, with no outline, whose country does),
+    /// most severe first.
     pub async fn in_box(&self, west: f64, south: f64, east: f64, north: f64) -> Vec<Warning> {
         let current = self.current.read().await;
+        let overlaps = |b: &[f64; 4]| b[0] < east && b[2] > west && b[1] < north && b[3] > south;
         let mut found: Vec<Warning> = COUNTRIES
             .iter()
-            .filter(|(_, _, b)| b[0] < east && b[2] > west && b[1] < north && b[3] > south)
+            .filter(|(_, _, b)| overlaps(b))
             .flat_map(|(_, code, _)| current.get(*code).cloned().unwrap_or_default())
+            .filter(|w| w.bbox.as_ref().is_none_or(overlaps))
             .collect();
         let rank = |s: &str| match s {
             "Extreme" => 0,
@@ -212,6 +274,44 @@ fn unescape(s: &str) -> String {
     s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
 }
 
+/// The EMMA_ID geocode of an Atom entry.
+fn emma_id(entry: &str) -> Option<String> {
+    entry.split("<cap:geocode>").skip(1).find_map(|g| {
+        (tag(g, "valueName").as_deref() == Some("EMMA_ID")).then(|| tag(g, "value")).flatten()
+    })
+}
+
+/// Rings of a GeoJSON Feature (Polygon or MultiPolygon), outer rings only, thinned to about 150
+/// points each, with their bounding box.
+fn parse_area(data: &[u8]) -> Option<Area> {
+    let value: serde_json::Value = serde_json::from_slice(data).ok()?;
+    let geometry = value.get("geometry").unwrap_or(&value);
+    let polygons: Vec<&serde_json::Value> = match geometry.get("type")?.as_str()? {
+        "Polygon" => vec![geometry.get("coordinates")?],
+        "MultiPolygon" => geometry.get("coordinates")?.as_array()?.iter().collect(),
+        _ => return None,
+    };
+    let mut rings = Vec::new();
+    let mut bbox = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    for polygon in polygons {
+        let Some(outer) = polygon.as_array().and_then(|p| p.first()).and_then(|r| r.as_array()) else { continue };
+        let points: Vec<[f64; 2]> = outer
+            .iter()
+            .filter_map(|p| Some([p.get(0)?.as_f64()?, p.get(1)?.as_f64()?]))
+            .collect();
+        if points.len() < 3 {
+            continue;
+        }
+        let step = points.len().div_ceil(150).max(1);
+        let thinned: Vec<[f64; 2]> = points.iter().step_by(step).chain(points.last()).copied().collect();
+        for p in &points {
+            bbox = [bbox[0].min(p[0]), bbox[1].min(p[1]), bbox[2].max(p[0]), bbox[3].max(p[1])];
+        }
+        rings.push(thinned);
+    }
+    (!rings.is_empty()).then_some(Area { rings, bbox })
+}
+
 /// The CAP link of an Atom entry.
 fn cap_link(entry: &str) -> Option<String> {
     entry.split("<link").find(|l| l.contains("application/cap+xml")).and_then(|l| {
@@ -246,6 +346,8 @@ pub fn parse_feed(feed: &str, code: &str) -> Vec<Warning> {
                 instruction: None,
                 polygon: None,
                 cap_url: cap_link(entry),
+                code: emma_id(entry),
+                bbox: None,
             })
         })
         .collect()
@@ -277,6 +379,7 @@ mod tests {
     use super::*;
 
     const FEED: &str = r#"<feed><entry>
+        <cap:geocode><valueName>EMMA_ID</valueName><value>HR805</value></cap:geocode>
         <cap:areaDesc>Middle Dalmatia region</cap:areaDesc>
         <cap:event>Yellow wind warning</cap:event>
         <cap:expires>2099-10-17T04:00:00+02:00</cap:expires>
@@ -297,6 +400,9 @@ mod tests {
         assert_eq!(w.expires, "2099-10-17T02:00:00+00:00");
         assert_eq!(w.onset, "2099-10-16T22:01:01+00:00");
         assert_eq!(w.cap_url.as_deref(), Some("https://example.org/cap/1?a=1&b=2"));
+        assert_eq!(w.code.as_deref(), Some("HR805"));
+        let area = parse_area(br#"{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[15.0,43.0],[17.0,43.0],[17.0,44.0],[15.0,43.0]]]}}"#).unwrap();
+        assert_eq!(area.bbox, [15.0, 43.0, 17.0, 44.0]);
 
         let cap = r#"<alert><info><language>hr-HR</language><description>Bura</description></info>
             <info><language>en-GB</language><description>Locally fresh wind.</description>
@@ -316,10 +422,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn filters_by_country_box() {
+    async fn filters_by_area_then_country() {
         let warnings = Warnings::default();
-        warnings.insert("HR", parse_feed(FEED, "HR")).await;
+        let mut found = parse_feed(FEED, "HR");
+        warnings.insert("HR", found.clone()).await;
+        // No outline: matched by country.
         assert_eq!(warnings.in_box(14.0, 44.0, 15.0, 45.0).await.len(), 1);
         assert!(warnings.in_box(-20.0, 10.0, -10.0, 20.0).await.is_empty());
+        // With an outline in Middle Dalmatia, Istria is clear of it.
+        found[0].bbox = Some([15.5, 43.0, 17.3, 44.0]);
+        warnings.insert("HR", found).await;
+        assert!(warnings.in_box(13.5, 44.8, 14.3, 45.5).await.is_empty());
+        assert_eq!(warnings.in_box(16.0, 43.2, 16.6, 43.6).await.len(), 1);
     }
 }

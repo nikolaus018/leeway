@@ -35,6 +35,8 @@ pub struct Config {
     pub radar_url: String,
     /// MeteoAlarm Atom feed with `{country}`; empty turns warnings off.
     pub warnings_url: String,
+    /// Outline of a MeteoAlarm area (GeoJSON) with `{code}`, the area's EMMA_ID.
+    pub warning_areas_url: String,
     /// Photon geocoder; empty searches the chart packs only.
     pub search_url: String,
     /// MapLibre styles served at `/v1/style/`.
@@ -82,6 +84,10 @@ impl Config {
             radar_url: var("RADAR_URL").unwrap_or_else(|| "https://api.rainviewer.com/public/weather-maps.json".into()),
             warnings_url: env::var("WARNINGS_URL")
                 .unwrap_or_else(|_| "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-{country}".into()),
+            // MeteoAlarm/EUMETNET geocode outlines (CC0), as published with KDE's public alert server.
+            warning_areas_url: env::var("WARNING_AREAS_URL").unwrap_or_else(|_| {
+                "https://raw.githubusercontent.com/KDE/foss-public-alert-server/master/foss_public_alert_server/alertHandler/data/EMMA_ID/{code}.geojson".into()
+            }),
             search_url: env::var("SEARCH_URL").unwrap_or_else(|_| "https://photon.komoot.io/api".into()),
             styles_dir: var("STYLES_DIR").map(PathBuf::from).unwrap_or_else(default_styles_dir),
             require_client_header: var("REQUIRE_CLIENT_HEADER").is_some_and(|v| v == "1" || v == "true"),

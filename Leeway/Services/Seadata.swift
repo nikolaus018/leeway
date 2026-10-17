@@ -75,19 +75,58 @@ nonisolated struct Seadata: Sendable, Equatable {
         return response.charts
     }
 
-    func chartFile(_ name: String) -> URL {
-        base.appending(path: "v1/charts/files").appending(path: name)
+    /// A pack file; the version makes the URL unique, so caches may keep it for good.
+    func chartFile(_ name: String, version: String? = nil) -> URL {
+        let url = base.appending(path: "v1/charts/files").appending(path: name)
+        return version.map { url.appending(queryItems: [URLQueryItem(name: "v", value: $0)]) } ?? url
     }
 
-    var seamarkTileTemplate: String {
-        base.appending(path: "v1/tiles/seamark").absoluteString + "/{z}/{x}/{y}.png"
+    func seaLevel(at c: CLLocationCoordinate2D) async throws -> SeaLevel {
+        try await get("v1/sealevel", [URLQueryItem(name: "lat", value: String(format: "%.3f", c.latitude)),
+                                      URLQueryItem(name: "lon", value: String(format: "%.3f", c.longitude))])
+    }
+
+    func warnings(in box: GeoBox) async throws -> [WeatherWarning] {
+        let response: WarningsResponse = try await get("v1/warnings", box.queryItems)
+        return response.warnings
+    }
+
+    func search(_ text: String, near c: CLLocationCoordinate2D?) async throws -> [PlaceResult] {
+        var query = [URLQueryItem(name: "q", value: text), URLQueryItem(name: "limit", value: "15")]
+        if let c {
+            query += [URLQueryItem(name: "lat", value: String(format: "%.2f", c.latitude)),
+                      URLQueryItem(name: "lon", value: String(format: "%.2f", c.longitude))]
+        }
+        let response: SearchResponse = try await get("v1/search", query)
+        return response.results
+    }
+
+    func radar() async throws -> [RadarFrame] {
+        let response: RadarResponse = try await get("v1/radar")
+        return response.frames
+    }
+
+    /// One session for the app: identifies the app to the server, and keeps what the server says
+    /// may be kept (forecasts for minutes, tiles for days) so repeat views cost nothing.
+    static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.httpAdditionalHeaders = ["X-Leeway-Client": clientHeader]
+        configuration.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 200 << 20,
+                                          directory: URL.cachesDirectory.appending(path: "Seadata"))
+        configuration.requestCachePolicy = .useProtocolCachePolicy
+        configuration.waitsForConnectivity = false
+        return URLSession(configuration: configuration)
+    }()
+
+    static var clientHeader: String {
+        "Leeway/\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0") iOS"
     }
 
     private func get<T: Decodable>(_ path: String, _ query: [URLQueryItem] = []) async throws -> T {
         var components = URLComponents(url: base.appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
-        let request = URLRequest(url: components.url!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let request = URLRequest(url: components.url!, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 20)
+        let (data, response) = try await Self.session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
             throw Failure.status(status, (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error)
@@ -97,6 +136,95 @@ nonisolated struct Seadata: Sendable, Equatable {
 }
 
 nonisolated private struct VesselsResponse: Decodable { let vessels: [Vessel] }
+nonisolated private struct WarningsResponse: Decodable { let warnings: [WeatherWarning] }
+nonisolated private struct SearchResponse: Decodable { let results: [PlaceResult] }
+nonisolated private struct RadarResponse: Decodable { let frames: [RadarFrame] }
+
+/// `/v1/sealevel`: tide plus surge, hourly.
+nonisolated struct SeaLevel: Decodable, Sendable, Equatable {
+    let lat: Double
+    let lon: Double
+    let times: [Double]
+    let height: [Double?]
+
+    /// (time, metres) pairs with data.
+    var points: [(Date, Double)] {
+        zip(times, height).compactMap { t, h in h.map { (Date(timeIntervalSince1970: t), $0) } }
+    }
+
+    /// Highs and lows: local extremes of the curve.
+    var turningPoints: [(time: Date, height: Double, high: Bool)] {
+        let p = points
+        guard p.count >= 3 else { return [] }
+        return (1..<(p.count - 1)).compactMap { i in
+            let (a, b, c) = (p[i - 1].1, p[i].1, p[i + 1].1)
+            if b > a && b >= c { return (p[i].0, b, true) }
+            if b < a && b <= c { return (p[i].0, b, false) }
+            return nil
+        }
+    }
+}
+
+/// An official weather warning (MeteoAlarm).
+nonisolated struct WeatherWarning: Decodable, Sendable, Identifiable, Hashable {
+    let id: String
+    let country: String
+    let areaName: String
+    let event: String
+    let severity: String
+    let level: String?
+    let kind: String?
+    let onset: String
+    let expires: String
+    let headline: String
+    let description: String?
+    let instruction: String?
+    /// The area's outline rings (lon, lat), when the server knows them.
+    let polygon: [[[Double]]]?
+
+    var title: String { "\(event) · \(areaName)" }
+
+    /// Marine-relevant: wind, thunderstorms, coastal events, fog.
+    var isMarine: Bool {
+        let k = (kind ?? event).lowercased()
+        return ["wind", "thunder", "coastal", "fog", "storm"].contains { k.contains($0) }
+    }
+
+    var onsetDate: Date? { ISO8601DateFormatter().date(from: onset) }
+    var expiresDate: Date? { ISO8601DateFormatter().date(from: expires) }
+}
+
+/// A place from `/v1/search`.
+nonisolated struct PlaceResult: Decodable, Sendable, Identifiable, Hashable {
+    let name: String
+    let kind: String
+    let lat: Double
+    let lon: Double
+    let detail: String?
+
+    var id: String { "\(name)|\(lat)|\(lon)" }
+    var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
+
+    var symbol: String {
+        switch kind {
+        case "marina": "sailboat.fill"
+        case "harbour": "ferry.fill"
+        case "anchorage", "mooring": "anchor"
+        case "bay", "strait": "water.waves"
+        case "island", "islet", "cape": "mountain.2.fill"
+        case "city", "town", "village": "building.2.fill"
+        case "fuel": "fuelpump.fill"
+        default: "mappin"
+        }
+    }
+}
+
+/// A rain radar picture: its time and tile URL template.
+nonisolated struct RadarFrame: Decodable, Sendable, Hashable {
+    let time: Double
+    let tiles: String
+    var date: Date { Date(timeIntervalSince1970: time) }
+}
 nonisolated private struct ChartsResponse: Decodable { let charts: [ChartPackInfo] }
 nonisolated private struct ErrorBody: Decodable { let error: String }
 

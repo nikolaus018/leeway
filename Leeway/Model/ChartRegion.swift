@@ -104,6 +104,8 @@ nonisolated final class ChartRegion: Sendable {
     /// Bounding box per ring: west, south, east, north.
     let ringBounds: [SIMD4<Float>]
     let attribution: String
+    /// The pack's vector chart (`<id>.pmtiles`), which the map draws; older packs have none.
+    let vectorFile: URL?
     /// Cell size in nautical miles.
     let cellNM: (dx: Double, dy: Double)
 
@@ -116,7 +118,7 @@ nonisolated final class ChartRegion: Sendable {
         let names: [PlaceName]?
     }
 
-    init(metadata: URL, depth: URL, land: URL? = nil) throws {
+    init(metadata: URL, depth: URL, land: URL? = nil, vector: URL? = nil) throws {
         let meta = try JSONDecoder().decode(Meta.self, from: Data(contentsOf: metadata))
         let packed = try Data(contentsOf: depth) as NSData
         let raw = try packed.decompressed(using: .zlib) as Data
@@ -142,6 +144,7 @@ nonisolated final class ChartRegion: Sendable {
         }
         let midLat = (north + south) / 2
         cellNM = (lonStep * 60 * cos(midLat.radians), latStep * 60)
+        vectorFile = vector.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
     }
 
     /// Chart packs downloaded from the data server.
@@ -161,7 +164,7 @@ nonisolated final class ChartRegion: Sendable {
         metas.compactMap { meta in
             let base = meta.deletingPathExtension()
             return try? ChartRegion(metadata: meta, depth: base.appendingPathExtension("depth"),
-                                    land: base.appendingPathExtension("land"))
+                                    land: base.appendingPathExtension("land"), vector: base.appendingPathExtension("pmtiles"))
         }
     }
 

@@ -4,6 +4,10 @@ options:
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
+packages:
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    exactVersion: 6.31.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -24,6 +28,7 @@ targets:
       - path: Shared
     dependencies:
       - target: LeewayWidgets
+      - package: MapLibre
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway
@@ -48,7 +53,14 @@ targets:
         NSSupportsLiveActivities: true
         NSLocationWhenInUseUsageDescription: Leeway shows your position on the chart and records your track.
         NSLocationAlwaysAndWhenInUseUsageDescription: Leeway keeps recording your track while the screen is off.
-        NSLocalNetworkUsageDescription: Leeway can use a data server on your local network, for example one on board.
+        NSLocalNetworkUsageDescription: Leeway connects to your boat's instruments and AIS over Wi-Fi, and can use a data server on board.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.topografix.gpx
+            UTTypeDescription: GPS Exchange Format
+            UTTypeConformsTo: [public.xml]
+            UTTypeTagSpecification:
+              public.filename-extension: [gpx]
+              public.mime-type: [application/gpx+xml]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

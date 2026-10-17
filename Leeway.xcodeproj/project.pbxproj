@@ -7,40 +7,48 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		033DFA85666DC37E81C16A6B /* ChartPainter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35E3AD915E30BC77896889B /* ChartPainter.swift */; };
+		02D6FC6BEC1AECE375666EA4 /* SearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7430E964825E73B4E23027DD /* SearchSheet.swift */; };
 		0F654DD20A77AD3A13CD65DC /* LeewayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7511A622C3058332BF87ED39 /* LeewayApp.swift */; };
+		139DB14FCB5059159F49471D /* NMEA.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E1CEF5FD5594EBA71BF8D7 /* NMEA.swift */; };
 		13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32E9D2DD05AF42C421217387 /* PassageSimulator.swift */; };
 		1544E1FDBA37677E1133E615 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FA840B4C2062B0CFC9B730 /* Router.swift */; };
+		17701257F6E34D63831CFD12 /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59EDB83D29FA350F3DA12BC /* MapModels.swift */; };
+		219F821DFE36068178B3C2A1 /* ChartStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B8C081EABD185ABA2579BF /* ChartStyle.swift */; };
+		2506E192CC2EB1A7B8FBFB89 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 51E12A757CF6A294C17EAB91 /* MapLibre */; };
 		2F22744FD3620E7BF2A7FAD1 /* UnderwayLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */; };
-		3A1D3E98A426BCD54D2118BF /* LiveAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F31EAEB65ABB42F88BDA4D9 /* LiveAnnotations.swift */; };
 		40F6AE66E0E2B97EBC6C2B4D /* ChartOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5938B4FFF285100FF120FF77 /* ChartOverlays.swift */; };
+		40FC118748F1ACE8B9075B1B /* GPX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D642B9F28D5AC5C169C58E /* GPX.swift */; };
 		41440C1344C0A10FB1E594BC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4353055592D8D20873CF331 /* AppModel.swift */; };
 		43F264534EBE3D877D15982E /* Seadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94967BD098A1B2EE451C00FF /* Seadata.swift */; };
 		522E16DE5A944F067BF4DF7B /* Geo.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85E889D9B66A8A1749ABE3B /* Geo.swift */; };
 		53752DD1D6887AE9B90E51E7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8EFE94CB30882F51F914BB57 /* Assets.xcassets */; };
 		5F5F45A8B2D70DB64E0A9411 /* DepartureChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DCF24BFFDF645642194F67 /* DepartureChart.swift */; };
 		6043ED12D6F724A2EFB8C6E6 /* UnderwayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */; };
+		610C04EA5AEAE450FED5B623 /* LayersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAF228C3BB180D257EEB29C2 /* LayersSheet.swift */; };
+		6197E972295C732811199DB1 /* WeatherSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */; };
 		6520014401BE4D67EEBBADD7 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
 		683F89877EFD76FB605D2EBF /* BoatSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD944797596A69421E6B18E /* BoatSettingsView.swift */; };
 		684FED2DC7B3F69274DEEF4B /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */; };
-		6A1AF10462E3413355153D96 /* ChartOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C844FF0AC40C49FEB4CBEF /* ChartOverlay.swift */; };
-		6A54446EE0DE0FA390E5BDEB /* InstrumentsHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CAC064CAC52D4714BA75F4 /* InstrumentsHUD.swift */; };
 		6B884780A4C4CF6128DED789 /* ChartRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */; };
+		6D88514E5369F87AB5C343EE /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A941943CD9C1660AB75F7EA7 /* SettingsSheet.swift */; };
 		6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */; };
 		835C00D16C1EB15447654ED9 /* ChartMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */; };
 		867D3251A6B82D3568D8A7BA /* LeewayWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		ABA00B80D4F3B941F068ED82 /* LegRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A36D6D617334874E5388BE /* LegRow.swift */; };
 		B24CA7880074F5C5702A69BD /* Polar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA318DCECB6195CF45242E2 /* Polar.swift */; };
 		B4FA6116BAD404706B373070 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C413FE184C3EC462C037FD5 /* ContentView.swift */; };
+		B9FCAEEC56B4F1CE0812EBB2 /* Sun.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0007F434BC83411D393D4D7 /* Sun.swift */; };
 		C15DCB97DAF6F4D2A42AFCAD /* Underway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020A1994950863B5E101FC3C /* Underway.swift */; };
+		C215CC340A697A1F6667E5A4 /* LogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C652AB69062550FF8150B40E /* LogSheet.swift */; };
 		C4414426B3B6EA1F6AFC3CE8 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */; };
 		C7551728DBFB734A01B30851 /* ChartStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */; };
 		CB97B8C5E1052CE568DB31E5 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */; };
 		D05931A40FD026D94AEA060A /* PlannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39EB09DAE69D74F326D91821 /* PlannerSheet.swift */; };
+		D13F2F2E69BE02CF5767636C /* MapChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FF9DFAB55E475CE196237B /* MapChrome.swift */; };
+		DB3DB9572503C1C0AD5021C3 /* SeamarkSymbols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F2994046CCEA04C05EB831 /* SeamarkSymbols.swift */; };
 		E03B79018EB52644D650DB4F /* MarineWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93883863C8AA97C51F552BD /* MarineWeatherService.swift */; };
 		E681E9D7EDA4BF6756D1A94C /* Charts in Resources */ = {isa = PBXBuildFile; fileRef = B524F876411C0E585A45E69D /* Charts */; };
 		E6AF15980B50CAFA1E56C3D6 /* DataSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F7B08FA605B2D0131D5427 /* DataSettingsView.swift */; };
-		EEC85793A5848836D3868B4A /* Annotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC572956552E0661819FAE4 /* Annotations.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,7 +77,7 @@
 
 /* Begin PBXFileReference section */
 		020A1994950863B5E101FC3C /* Underway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Underway.swift; sourceTree = "<group>"; };
-		12CAC064CAC52D4714BA75F4 /* InstrumentsHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentsHUD.swift; sourceTree = "<group>"; };
+		10D642B9F28D5AC5C169C58E /* GPX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPX.swift; sourceTree = "<group>"; };
 		18C224E8BAB29A9C87B37793 /* Leeway.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Leeway.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19A36D6D617334874E5388BE /* LegRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegRow.swift; sourceTree = "<group>"; };
 		209F0DD62480A15FAD2A6271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -79,32 +87,50 @@
 		32E9D2DD05AF42C421217387 /* PassageSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageSimulator.swift; sourceTree = "<group>"; };
 		35E9322D3B3AA538F0E0221F /* UnderwayLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayLiveActivity.swift; sourceTree = "<group>"; };
 		39EB09DAE69D74F326D91821 /* PlannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerSheet.swift; sourceTree = "<group>"; };
-		3F31EAEB65ABB42F88BDA4D9 /* LiveAnnotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAnnotations.swift; sourceTree = "<group>"; };
+		45FF9DFAB55E475CE196237B /* MapChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapChrome.swift; sourceTree = "<group>"; };
+		52F2994046CCEA04C05EB831 /* SeamarkSymbols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeamarkSymbols.swift; sourceTree = "<group>"; };
 		5938B4FFF285100FF120FF77 /* ChartOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlays.swift; sourceTree = "<group>"; };
 		5C413FE184C3EC462C037FD5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		70DCF24BFFDF645642194F67 /* DepartureChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureChart.swift; sourceTree = "<group>"; };
+		726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSheet.swift; sourceTree = "<group>"; };
+		7430E964825E73B4E23027DD /* SearchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSheet.swift; sourceTree = "<group>"; };
 		7511A622C3058332BF87ED39 /* LeewayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeewayApp.swift; sourceTree = "<group>"; };
-		76C844FF0AC40C49FEB4CBEF /* ChartOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartOverlay.swift; sourceTree = "<group>"; };
 		8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayViews.swift; sourceTree = "<group>"; };
 		8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStore.swift; sourceTree = "<group>"; };
 		8C31E6C834871CAA1B9E8A83 /* ChartRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRegion.swift; sourceTree = "<group>"; };
 		8EFE94CB30882F51F914BB57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		94967BD098A1B2EE451C00FF /* Seadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Seadata.swift; sourceTree = "<group>"; };
 		9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartMapView.swift; sourceTree = "<group>"; };
+		A941943CD9C1660AB75F7EA7 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		B524F876411C0E585A45E69D /* Charts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Charts; path = Leeway/Charts; sourceTree = SOURCE_ROOT; };
 		BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
 		C1671BA8B32130E96C85BAB3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		C35E3AD915E30BC77896889B /* ChartPainter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartPainter.swift; sourceTree = "<group>"; };
+		C652AB69062550FF8150B40E /* LogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogSheet.swift; sourceTree = "<group>"; };
+		C6E1CEF5FD5594EBA71BF8D7 /* NMEA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NMEA.swift; sourceTree = "<group>"; };
 		C85E889D9B66A8A1749ABE3B /* Geo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geo.swift; sourceTree = "<group>"; };
 		CCC4B7D0C6F75638F6D1DCE3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		D0007F434BC83411D393D4D7 /* Sun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sun.swift; sourceTree = "<group>"; };
 		D558AB3F6F1EDF141C429A59 /* UnderwayActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderwayActivity.swift; sourceTree = "<group>"; };
+		D59EDB83D29FA350F3DA12BC /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
 		D93883863C8AA97C51F552BD /* MarineWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarineWeatherService.swift; sourceTree = "<group>"; };
 		DC1E692EA7740F2CB7948CCE /* LeewayWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LeewayWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDD944797596A69421E6B18E /* BoatSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoatSettingsView.swift; sourceTree = "<group>"; };
 		E4353055592D8D20873CF331 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		E5B8C081EABD185ABA2579BF /* ChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStyle.swift; sourceTree = "<group>"; };
 		E8FA840B4C2062B0CFC9B730 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
-		EAC572956552E0661819FAE4 /* Annotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Annotations.swift; sourceTree = "<group>"; };
+		FAF228C3BB180D257EEB29C2 /* LayersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayersSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C81AB08ED87036C5BBBDEBAE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2506E192CC2EB1A7B8FBFB89 /* MapLibre in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		093B2E17165BB3E429C4AA3D /* LeewayWidgets */ = {
@@ -120,9 +146,11 @@
 			isa = PBXGroup;
 			children = (
 				8B0D28A3A1909C2F164ADD68 /* ChartStore.swift */,
+				10D642B9F28D5AC5C169C58E /* GPX.swift */,
 				BD798CFA684712D04FE5F4D1 /* LiveActivityController.swift */,
 				2839FCE7BDDF89C17AC7714F /* LocationTracker.swift */,
 				D93883863C8AA97C51F552BD /* MarineWeatherService.swift */,
+				C6E1CEF5FD5594EBA71BF8D7 /* NMEA.swift */,
 				94967BD098A1B2EE451C00FF /* Seadata.swift */,
 				020A1994950863B5E101FC3C /* Underway.swift */,
 			);
@@ -163,6 +191,7 @@
 				32E9D2DD05AF42C421217387 /* PassageSimulator.swift */,
 				2FA318DCECB6195CF45242E2 /* Polar.swift */,
 				E8FA840B4C2062B0CFC9B730 /* Router.swift */,
+				D0007F434BC83411D393D4D7 /* Sun.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -175,10 +204,15 @@
 				5C413FE184C3EC462C037FD5 /* ContentView.swift */,
 				30F7B08FA605B2D0131D5427 /* DataSettingsView.swift */,
 				70DCF24BFFDF645642194F67 /* DepartureChart.swift */,
-				12CAC064CAC52D4714BA75F4 /* InstrumentsHUD.swift */,
+				FAF228C3BB180D257EEB29C2 /* LayersSheet.swift */,
 				19A36D6D617334874E5388BE /* LegRow.swift */,
+				C652AB69062550FF8150B40E /* LogSheet.swift */,
+				45FF9DFAB55E475CE196237B /* MapChrome.swift */,
 				39EB09DAE69D74F326D91821 /* PlannerSheet.swift */,
+				7430E964825E73B4E23027DD /* SearchSheet.swift */,
+				A941943CD9C1660AB75F7EA7 /* SettingsSheet.swift */,
 				8834A63B0D0C12B8AB2B4BED /* UnderwayViews.swift */,
+				726D19A0AFF57DFCC4599E4E /* WeatherSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -196,11 +230,10 @@
 		E2EF0E5004065D6929FCFE79 /* Map */ = {
 			isa = PBXGroup;
 			children = (
-				EAC572956552E0661819FAE4 /* Annotations.swift */,
 				9A7BCB445D3D67CFFFED419B /* ChartMapView.swift */,
-				76C844FF0AC40C49FEB4CBEF /* ChartOverlay.swift */,
-				C35E3AD915E30BC77896889B /* ChartPainter.swift */,
-				3F31EAEB65ABB42F88BDA4D9 /* LiveAnnotations.swift */,
+				E5B8C081EABD185ABA2579BF /* ChartStyle.swift */,
+				D59EDB83D29FA350F3DA12BC /* MapModels.swift */,
+				52F2994046CCEA04C05EB831 /* SeamarkSymbols.swift */,
 			);
 			path = Map;
 			sourceTree = "<group>";
@@ -222,6 +255,7 @@
 			buildPhases = (
 				80A27FC6FACED3107127E7A6 /* Sources */,
 				0E397F9C92578E02E4320049 /* Resources */,
+				C81AB08ED87036C5BBBDEBAE /* Frameworks */,
 				671E8C9F8C8F170AFB375F9A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -231,6 +265,7 @@
 			);
 			name = Leeway;
 			packageProductDependencies = (
+				51E12A757CF6A294C17EAB91 /* MapLibre */,
 			);
 			productName = Leeway;
 			productReference = 18C224E8BAB29A9C87B37793 /* Leeway.app */;
@@ -281,6 +316,9 @@
 			);
 			mainGroup = C0291877E780404A506FF385;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AD7297A226374AF07A0221B2 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 812A2AC622A6C8203FB23A3B /* Products */;
 			projectDirPath = "";
@@ -318,35 +356,42 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EEC85793A5848836D3868B4A /* Annotations.swift in Sources */,
 				41440C1344C0A10FB1E594BC /* AppModel.swift in Sources */,
 				683F89877EFD76FB605D2EBF /* BoatSettingsView.swift in Sources */,
 				835C00D16C1EB15447654ED9 /* ChartMapView.swift in Sources */,
-				6A1AF10462E3413355153D96 /* ChartOverlay.swift in Sources */,
 				40F6AE66E0E2B97EBC6C2B4D /* ChartOverlays.swift in Sources */,
-				033DFA85666DC37E81C16A6B /* ChartPainter.swift in Sources */,
 				6B884780A4C4CF6128DED789 /* ChartRegion.swift in Sources */,
 				C7551728DBFB734A01B30851 /* ChartStore.swift in Sources */,
+				219F821DFE36068178B3C2A1 /* ChartStyle.swift in Sources */,
 				B4FA6116BAD404706B373070 /* ContentView.swift in Sources */,
 				E6AF15980B50CAFA1E56C3D6 /* DataSettingsView.swift in Sources */,
 				5F5F45A8B2D70DB64E0A9411 /* DepartureChart.swift in Sources */,
+				40FC118748F1ACE8B9075B1B /* GPX.swift in Sources */,
 				522E16DE5A944F067BF4DF7B /* Geo.swift in Sources */,
-				6A54446EE0DE0FA390E5BDEB /* InstrumentsHUD.swift in Sources */,
+				610C04EA5AEAE450FED5B623 /* LayersSheet.swift in Sources */,
 				0F654DD20A77AD3A13CD65DC /* LeewayApp.swift in Sources */,
 				ABA00B80D4F3B941F068ED82 /* LegRow.swift in Sources */,
 				C4414426B3B6EA1F6AFC3CE8 /* LiveActivityController.swift in Sources */,
-				3A1D3E98A426BCD54D2118BF /* LiveAnnotations.swift in Sources */,
 				CB97B8C5E1052CE568DB31E5 /* LocationTracker.swift in Sources */,
+				C215CC340A697A1F6667E5A4 /* LogSheet.swift in Sources */,
+				D13F2F2E69BE02CF5767636C /* MapChrome.swift in Sources */,
+				17701257F6E34D63831CFD12 /* MapModels.swift in Sources */,
 				E03B79018EB52644D650DB4F /* MarineWeatherService.swift in Sources */,
 				684FED2DC7B3F69274DEEF4B /* Models.swift in Sources */,
+				139DB14FCB5059159F49471D /* NMEA.swift in Sources */,
 				13C7A1964932F10F5E39AEC1 /* PassageSimulator.swift in Sources */,
 				D05931A40FD026D94AEA060A /* PlannerSheet.swift in Sources */,
 				B24CA7880074F5C5702A69BD /* Polar.swift in Sources */,
 				1544E1FDBA37677E1133E615 /* Router.swift in Sources */,
 				43F264534EBE3D877D15982E /* Seadata.swift in Sources */,
+				DB3DB9572503C1C0AD5021C3 /* SeamarkSymbols.swift in Sources */,
+				02D6FC6BEC1AECE375666EA4 /* SearchSheet.swift in Sources */,
+				6D88514E5369F87AB5C343EE /* SettingsSheet.swift in Sources */,
+				B9FCAEEC56B4F1CE0812EBB2 /* Sun.swift in Sources */,
 				C15DCB97DAF6F4D2A42AFCAD /* Underway.swift in Sources */,
 				6EF4CEC6724199D02DB3D089 /* UnderwayActivity.swift in Sources */,
 				6043ED12D6F724A2EFB8C6E6 /* UnderwayViews.swift in Sources */,
+				6197E972295C732811199DB1 /* WeatherSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -594,6 +639,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AD7297A226374AF07A0221B2 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
+			requirement = {
+				kind = exactVersion;
+				version = 6.31.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		51E12A757CF6A294C17EAB91 /* MapLibre */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AD7297A226374AF07A0221B2 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			productName = MapLibre;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BB8AD6106F2DD3C14CA57CFB /* Project object */;
 }
