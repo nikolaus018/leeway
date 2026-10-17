@@ -49,7 +49,7 @@ iOS 26 (Liquid Glass). One nautical chart for the whole world, with detailed off
 
 ## Coverage
 
-Croatia and its waters, for now: the map stays inside it (`ChartMapView.coverage`), and the data server
+Croatia and its waters, for now: the map itself is free to go anywhere, but the data server
 gathers AIS, the wind grid, MeteoAlarm warnings and place search for Croatia only (`config::CROATIA`,
 `COUNTRIES` in `warnings.rs`). Official coastline, sea names, traffic separation schemes, cables,
 pipelines and platforms come from the Croatian Hydrographic Institute's open data

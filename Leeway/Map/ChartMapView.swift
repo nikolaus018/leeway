@@ -38,9 +38,6 @@ struct ChartMapView: UIViewRepresentable {
 
     static let home = CLLocationCoordinate2D(latitude: 45.2, longitude: 14.42)
 
-    /// Leeway covers Croatia for now: the map stays in and around it (south, west, north, east).
-    static let coverage = (south: 41.9, west: 12.5, north: 47.0, east: 20.0)
-    static let minimumZoom = 5.5
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -57,7 +54,7 @@ struct ChartMapView: UIViewRepresentable {
         // No twisting by hand; heading-up and course-up tracking still turn the map.
         map.allowsRotating = false
         map.maximumZoomLevel = 18
-        map.minimumZoomLevel = Self.minimumZoom
+        map.minimumZoomLevel = 1.5
         map.automaticallyAdjustsContentInset = false
         map.preferredFramesPerSecond = .maximum
         c.applyStyle(style, to: map)
@@ -297,11 +294,6 @@ struct ChartMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, annotationCanShowCallout annotation: MLNAnnotation) -> Bool { false }
 
-        /// Keeps the camera over Croatia: a move that would take the centre out of it is refused.
-        func mapView(_ mapView: MLNMapView, shouldChangeFrom oldCamera: MLNMapCamera, to newCamera: MLNMapCamera) -> Bool {
-            let c = newCamera.centerCoordinate, box = ChartMapView.coverage
-            return c.latitude >= box.south && c.latitude <= box.north && c.longitude >= box.west && c.longitude <= box.east
-        }
 
         // MARK: Camera
 

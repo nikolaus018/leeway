@@ -80,5 +80,5 @@ device, an account, a boat or a decision.
   buoy shapes, no drying heights or tidal datum, custom (not S-52) palettes.
 - Depth data is about 115 m resolution (EMODnet); there is no free higher-resolution source for Croatia. A
   licence from the Croatian Hydrographic Institute would be the only route to better.
-- The app covers Croatia only: the map stays inside it, and the server gathers AIS, wind, warnings and search for
-  Croatia only (`config::CROATIA`, `ChartMapView.coverage`).
+- The detailed charts and the server's AIS, wind, warnings and search cover Croatia only (`config::CROATIA`); the
+  map itself can be moved anywhere, and outside Croatia it shows the base map and worldwide depth only.
