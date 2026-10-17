@@ -19,7 +19,7 @@ struct OnboardingView: View {
                     .font(.largeTitle.weight(.bold))
                 VStack(alignment: .leading, spacing: 16) {
                     Feature(symbol: "map", title: "One chart for the whole sea",
-                            text: "Depths, contours, lights and buoys, with detailed offline charts for the Adriatic.")
+                            text: "Depths, contours, lights and buoys, with detailed offline charts for the Croatian coast.")
                     Feature(symbol: "point.topleft.down.to.point.bottomright.curvepath", title: "Safe and fast routes",
                             text: "Around land, shallows and charted dangers, timed and optimised with the forecast wind.")
                     Feature(symbol: "location.north.line", title: "Underway",

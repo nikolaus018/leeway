@@ -45,8 +45,22 @@ extension LightCharacteristic.LightColor {
 struct FlashingLightIcon: View {
     var characteristic: LightCharacteristic
     var isSmall: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        // Reduce Motion: a steady icon in the light's colour; the characteristic is written out anyway.
+        if reduceMotion {
+            Image(systemName: isSmall ? "light.max" : "light.beacon.max.fill")
+                .font(isSmall ? .footnote.weight(.semibold) : .title3)
+                .foregroundStyle(characteristic.color.color)
+                .frame(width: isSmall ? 20 : 28, height: isSmall ? 20 : 28)
+                .accessibilityHidden(true)
+        } else {
+            animated
+        }
+    }
+
+    private var animated: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { timeline in
             let on = characteristic.isOn(at: timeline.date)
             let color = characteristic.color.color

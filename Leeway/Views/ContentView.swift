@@ -9,6 +9,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("acceptedDisclaimer") private var acceptedDisclaimer = false
     @State private var showingOnboarding = false
 
@@ -63,6 +64,8 @@ struct ContentView: View {
         .onChange(of: model.underway.isNavigating) { _, navigating in
             if navigating { model.selectedTab = .chart }
         }
+        // Reduce Motion: cards and banners appear without sliding or fading.
+        .transaction { if reduceMotion { $0.animation = nil } }
     }
 }
 

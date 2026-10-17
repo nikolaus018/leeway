@@ -50,6 +50,7 @@ struct TopChrome: View {
 /// SOG · COG · depth in one fixed-size strip; tap for position and logging state.
 struct InstrumentStrip: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
 
     var body: some View {
@@ -66,7 +67,7 @@ struct InstrumentStrip: View {
                         Image(systemName: "record.circle")
                             .font(.caption)
                             .foregroundStyle(.red)
-                            .symbolEffect(.pulse)
+                            .symbolEffect(.pulse, isActive: !reduceMotion)
                             .accessibilityLabel("Recording track")
                     }
                 }
