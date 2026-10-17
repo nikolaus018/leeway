@@ -42,6 +42,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let config = Arc::new(Config::from_env());
     let state = AppState::new(config.clone())?;
+    // The AIS area is also the sailing area: keep its wind grid ready for zoomed-out maps.
+    state.forecasts.clone().keep_warm(config.ais_bbox);
     tracing::info!(
         "charts from {}, {} pack(s); tile cache in {}",
         config.charts_dir.display(),
@@ -191,7 +193,7 @@ fn parse_points(spec: &str) -> Result<Vec<(f64, f64)>, ApiError> {
 
 async fn forecast(State(state): State<AppState>, Query(q): Query<ForecastQuery>) -> Result<Response, ApiError> {
     let points = parse_points(&q.points)?;
-    let series = state.forecasts.series(&points).await?;
+    let series = state.forecasts.series(&points, forecast::Detail::Full).await?;
     Ok(cached(
         600,
         Json(json!({
@@ -234,7 +236,7 @@ async fn wind_grid(State(state): State<AppState>, Query(q): Query<BoxQuery>) -> 
     if nodes.is_empty() {
         return Ok(cached(600, Json(forecast::grid(step, &[]))));
     }
-    let series = state.forecasts.series(&nodes).await?;
+    let series = state.forecasts.series(&nodes, forecast::Detail::Wind).await?;
     Ok(cached(600, Json(forecast::grid(step, &series))))
 }
 

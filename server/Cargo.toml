@@ -2,6 +2,7 @@
 name = "seadata"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.85"
 description = "Leeway data server: forecasts, seamark tiles, chart packs and AIS for the Leeway iOS app"
 license = "MIT"
 publish = false

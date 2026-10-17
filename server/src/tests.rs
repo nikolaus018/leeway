@@ -115,9 +115,10 @@ async fn wind_grid_tiles_and_charts() {
         .json()
         .await
         .unwrap();
-    assert_eq!(grid["step"], json!(0.05));
+    assert_eq!(grid["step"], json!(0.1));
     assert_eq!(grid["times"].as_array().unwrap().len(), 2);
-    assert!(grid["points"].as_array().unwrap().len() > 50);
+    let points = grid["points"].as_array().unwrap().len();
+    assert!((20..=forecast::MAX_ON_DEMAND_POINTS).contains(&points), "{points} points");
 
     let tile = reqwest::get(format!("{base}/v1/tiles/seamark/10/550/362.png")).await.unwrap();
     assert_eq!(tile.status(), 200);
@@ -139,4 +140,36 @@ async fn wind_grid_tiles_and_charts() {
     let info: Value = reqwest::get(format!("{base}/v1/info")).await.unwrap().json().await.unwrap();
     assert!(!info["features"].as_array().unwrap().contains(&json!("ais")));
     assert_eq!(reqwest::get(format!("{base}/v1/ais?west=13&south=44&east=15&north=46")).await.unwrap().status(), 501);
+}
+
+#[tokio::test]
+async fn retries_when_open_meteo_is_busy() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let healthy = fake_upstream(Arc::new(AtomicUsize::new(0))).await;
+    let counter = calls.clone();
+    // Refuses the first wind request like Open-Meteo does under load, then passes through.
+    let busy = serve(Router::new().route(
+        "/forecast",
+        get(move |raw: axum::extract::RawQuery| {
+            let first = counter.fetch_add(1, Ordering::SeqCst) == 0;
+            let healthy = healthy.clone();
+            async move {
+                let query = raw.0.unwrap_or_default();
+                if first && query.contains("models") {
+                    return (StatusCode::TOO_MANY_REQUESTS, r#"{"reason":"Too many concurrent requests"}"#.to_string())
+                        .into_response();
+                }
+                let body = reqwest::get(format!("{healthy}/forecast?{query}")).await.unwrap().text().await.unwrap();
+                ([(header::CONTENT_TYPE, "application/json")], body).into_response()
+            }
+        }),
+    ))
+    .await;
+    let cache = tempfile::tempdir().unwrap();
+    let base = server(&busy, cache.path()).await;
+    let response = reqwest::get(format!("{base}/v1/forecast?points=45.3,14.4")).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["points"][0]["windSpeed"], json!([14.0, 8.0]));
+    assert!(calls.load(Ordering::SeqCst) >= 3, "wind retried after the 429");
 }

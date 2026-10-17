@@ -10,18 +10,22 @@ use futures_util::future::try_join_all;
 use moka::future::Cache;
 use serde::Serialize;
 use serde_json::Value;
+use tokio::sync::Semaphore;
 
 use crate::config::Config;
 
 /// Wind models, finest first: (name the app shows, Open-Meteo model id).
 /// ICON-2I is ItaliaMeteo's 2.2 km Adriatic model and resolves the bura; the global
-/// fallback covers every hour the others don't.
-pub const WIND_MODELS: [(&str, &str); 4] =
-    [("icon2I", "italia_meteo_arpae_icon_2i"), ("iconD2", "icon_d2"), ("iconEU", "icon_eu"), ("global", "best_match")];
+/// fallback covers every hour the others don't. (ICON-D2 adds nothing where ICON-2I runs, and
+/// every model multiplies the cost of a request.)
+pub const WIND_MODELS: [(&str, &str); 3] =
+    [("icon2I", "italia_meteo_arpae_icon_2i"), ("iconEU", "icon_eu"), ("global", "best_match")];
 
 const FORECAST_DAYS: u32 = 4;
 /// Points per upstream request; Open-Meteo takes comma-separated lists.
-const CHUNK: usize = 50;
+const CHUNK: usize = 25;
+/// The free Open-Meteo API refuses too many concurrent requests from one address.
+const UPSTREAM_CONCURRENCY: usize = 2;
 pub const MAX_POINTS: usize = 200;
 
 /// Hourly forecast for one point. Optional series are left out when the source has nothing there
@@ -79,6 +83,16 @@ pub struct Series {
     pub weather_code: Vec<Option<f64>>,
 }
 
+/// How much to fetch for a point.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Detail {
+    /// Everything, wind from the finest model per hour: for routes and the local forecast.
+    Full,
+    /// Wind from one model and wave height, for map arrows: multi-model requests cost
+    /// Open-Meteo about 1.5 s per point.
+    Wind,
+}
+
 /// Grid key: hundredths of a degree.
 type Key = (i32, i32);
 
@@ -94,6 +108,8 @@ pub struct Forecasts {
     http: reqwest::Client,
     config: Arc<Config>,
     cache: Cache<Key, Arc<Series>>,
+    wind_cache: Cache<Key, Arc<Series>>,
+    upstream: Semaphore,
 }
 
 impl Forecasts {
@@ -101,12 +117,17 @@ impl Forecasts {
         Forecasts {
             http,
             config,
-            cache: Cache::builder().max_capacity(100_000).time_to_live(Duration::from_secs(20 * 60)).build(),
+            // Models update a few times a day; an hour old is still current.
+            cache: Cache::builder().max_capacity(100_000).time_to_live(Duration::from_secs(3600)).build(),
+            // Outlives the 3-hourly background refresh, so warm points never lapse.
+            wind_cache: Cache::builder().max_capacity(100_000).time_to_live(Duration::from_secs(4 * 3600)).build(),
+            upstream: Semaphore::new(UPSTREAM_CONCURRENCY),
         }
     }
 
     /// Series for each point, in order, snapped to the 0.01° grid.
-    pub async fn series(&self, points: &[(f64, f64)]) -> Result<Vec<Arc<Series>>> {
+    pub async fn series(&self, points: &[(f64, f64)], detail: Detail) -> Result<Vec<Arc<Series>>> {
+        let cache = if detail == Detail::Full { &self.cache } else { &self.wind_cache };
         let keys: Vec<Key> = points.iter().map(|&(lat, lon)| key(lat, lon)).collect();
         let mut found: HashMap<Key, Arc<Series>> = HashMap::new();
         let mut missing: Vec<Key> = Vec::new();
@@ -114,27 +135,47 @@ impl Forecasts {
             if found.contains_key(&k) || missing.contains(&k) {
                 continue;
             }
-            match self.cache.get(&k).await {
+            match cache.get(&k).await {
                 Some(series) => {
                     found.insert(k, series);
                 }
                 None => missing.push(k),
             }
         }
-        let fetched = try_join_all(missing.chunks(CHUNK).map(|chunk| self.fetch(chunk))).await?;
+        let fetched = try_join_all(missing.chunks(CHUNK).map(|chunk| self.fetch(chunk, detail))).await?;
         for (k, series) in missing.iter().zip(fetched.into_iter().flatten()) {
             let series = Arc::new(series);
-            self.cache.insert(*k, series.clone()).await;
+            cache.insert(*k, series.clone()).await;
             found.insert(*k, series);
         }
         keys.iter().map(|k| found.get(k).cloned().ok_or_else(|| anyhow!("no forecast for {k:?}"))).collect()
     }
 
-    async fn fetch(&self, keys: &[Key]) -> Result<Vec<Series>> {
+    /// Keeps the coarse grid over `bbox` (south, west, north, east) cached, so zoomed-out map
+    /// views never wait on Open-Meteo.
+    pub fn keep_warm(self: Arc<Self>, bbox: [f64; 4]) {
+        tokio::spawn(async move {
+            loop {
+                let [south, west, north, east] = bbox;
+                let nodes = nodes_at(WARM_STEP, west, south, east, north);
+                let started = std::time::Instant::now();
+                match self.series(&nodes, Detail::Wind).await {
+                    Ok(_) => tracing::info!("wind grid warm: {} points in {:?}", nodes.len(), started.elapsed()),
+                    Err(error) => tracing::warn!("wind grid warm-up failed: {error:#}"),
+                }
+                tokio::time::sleep(Duration::from_secs(3 * 3600)).await;
+            }
+        });
+    }
+
+    async fn fetch(&self, keys: &[Key], detail: Detail) -> Result<Vec<Series>> {
         let coords: Vec<(f64, f64)> = keys.iter().map(|&k| coordinate(k)).collect();
         let lats = coords.iter().map(|c| format!("{:.2}", c.0)).collect::<Vec<_>>().join(",");
         let lons = coords.iter().map(|c| format!("{:.2}", c.1)).collect::<Vec<_>>().join(",");
-        let models = WIND_MODELS.iter().map(|m| m.1).collect::<Vec<_>>().join(",");
+        let models = match detail {
+            Detail::Full => WIND_MODELS.iter().map(|m| m.1).collect::<Vec<_>>().join(","),
+            Detail::Wind => "best_match".to_string(),
+        };
 
         let wind_query = [
             ("hourly", "wind_speed_10m,wind_direction_10m,wind_gusts_10m"),
@@ -145,10 +186,18 @@ impl Forecasts {
             [("hourly", "temperature_2m,pressure_msl,precipitation,cloud_cover,visibility,weather_code")];
         let marine_query = [(
             "hourly",
-            "wave_height,wave_direction,wave_period,swell_wave_height,ocean_current_velocity,ocean_current_direction,sea_surface_temperature",
+            match detail {
+                Detail::Full => "wave_height,wave_direction,wave_period,swell_wave_height,ocean_current_velocity,ocean_current_direction,sea_surface_temperature",
+                Detail::Wind => "wave_height",
+            },
         )];
         let wind = self.get(&self.config.forecast_url, &lats, &lons, &wind_query);
-        let weather = self.get(&self.config.forecast_url, &lats, &lons, &weather_query);
+        let weather = async {
+            match detail {
+                Detail::Full => self.get(&self.config.forecast_url, &lats, &lons, &weather_query).await,
+                Detail::Wind => Ok(Value::Array(Vec::new())),
+            }
+        };
         let marine = self.get(&self.config.marine_url, &lats, &lons, &marine_query);
         let (wind, weather, marine) = tokio::join!(wind, weather, marine);
         let wind = locations(wind.context("wind forecast")?);
@@ -178,13 +227,34 @@ impl Forecasts {
         if let Some(key) = &self.config.open_meteo_key {
             query.push(("apikey", key));
         }
-        let response = self.http.get(base).query(&query).send().await?;
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(anyhow!("{base} answered {status}: {}", body.chars().take(300).collect::<String>()));
+        // Busy or briefly down upstream: back off and try again.
+        let mut attempt = 0;
+        loop {
+            let response = {
+                let _permit = self.upstream.acquire().await?;
+                self.http.get(base).query(&query).timeout(Duration::from_secs(60)).send().await
+            };
+            let retry = match response {
+                Ok(response) if response.status().is_success() => return Ok(response.json().await?),
+                Ok(response) => {
+                    let status = response.status();
+                    let body = response.text().await.unwrap_or_default();
+                    let error = anyhow!("{base} answered {status}: {}", body.chars().take(300).collect::<String>());
+                    if status.as_u16() == 429 || status.is_server_error() {
+                        error
+                    } else {
+                        return Err(error);
+                    }
+                }
+                Err(error) if error.is_timeout() || error.is_connect() => error.into(),
+                Err(error) => return Err(error.into()),
+            };
+            attempt += 1;
+            if attempt > 3 {
+                return Err(retry);
+            }
+            tokio::time::sleep(Duration::from_millis(1000 << attempt)).await;
         }
-        Ok(response.json().await?)
     }
 }
 
@@ -353,7 +423,11 @@ pub struct GridPoint {
     pub wave_height: Vec<Option<f64>>,
 }
 
-pub const MAX_GRID_POINTS: usize = 160;
+pub const MAX_GRID_POINTS: usize = 90;
+/// Finer grids than the warm one are fetched on demand, so keep them small.
+pub const MAX_ON_DEMAND_POINTS: usize = 30;
+/// Spacing of the grid kept warm in the background; coarser grids are subsets of it.
+pub const WARM_STEP: f64 = 0.5;
 
 /// Grid nodes covering a box, on multiples of the step so different views share cached points.
 pub fn grid_nodes(west: f64, south: f64, east: f64, north: f64) -> (f64, Vec<(f64, f64)>) {
@@ -363,7 +437,14 @@ pub fn grid_nodes(west: f64, south: f64, east: f64, north: f64) -> (f64, Vec<(f6
         let rows = ((north / step).floor() - (south / step).ceil() + 1.0).max(0.0);
         (cols * rows) as usize
     };
-    let step = STEPS.iter().copied().find(|&s| count(s) <= MAX_GRID_POINTS).unwrap_or(10.0);
+    let fits = |step: f64| count(step) <= if step >= WARM_STEP { MAX_GRID_POINTS } else { MAX_ON_DEMAND_POINTS };
+    let step = STEPS.iter().copied().find(|&s| fits(s)).unwrap_or(10.0);
+    let mut nodes = nodes_at(step, west, south, east, north);
+    nodes.truncate(MAX_GRID_POINTS);
+    (step, nodes)
+}
+
+fn nodes_at(step: f64, west: f64, south: f64, east: f64, north: f64) -> Vec<(f64, f64)> {
     let mut nodes = Vec::new();
     let (r0, r1) = ((south / step).ceil() as i64, (north / step).floor() as i64);
     let (c0, c1) = ((west / step).ceil() as i64, (east / step).floor() as i64);
@@ -376,8 +457,7 @@ pub fn grid_nodes(west: f64, south: f64, east: f64, north: f64) -> (f64, Vec<(f6
             }
         }
     }
-    nodes.truncate(MAX_GRID_POINTS);
-    (step, nodes)
+    nodes
 }
 
 pub fn grid(step: f64, series: &[Arc<Series>]) -> Grid {
@@ -453,7 +533,8 @@ mod tests {
         assert_eq!(step, 0.5);
         assert!(nodes.iter().all(|&(lat, lon)| ((lat / step).round() * step - lat).abs() < 1e-9 && lon >= 13.2));
         let (fine, nodes) = grid_nodes(14.3, 45.0, 14.6, 45.3);
-        assert_eq!(fine, 0.05);
+        assert_eq!(fine, 0.1);
+        assert!(nodes.len() <= MAX_ON_DEMAND_POINTS);
         assert!(!nodes.is_empty());
     }
 }

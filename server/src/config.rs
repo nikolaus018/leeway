@@ -17,7 +17,7 @@ pub struct Config {
     /// aisstream.io key; AIS is off without one.
     pub ais_key: Option<String>,
     pub ais_url: String,
-    /// Area to receive AIS for: south, west, north, east.
+    /// Sailing area (south, west, north, east): AIS is received and the wind grid kept warm here.
     pub ais_bbox: [f64; 4],
     /// Sent upstream as the User-Agent, as OpenSeaMap and Open-Meteo ask.
     pub user_agent: String,
