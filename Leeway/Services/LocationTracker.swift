@@ -7,12 +7,12 @@ final class LocationTracker {
     private(set) var location: CLLocation?
     private(set) var isRecording = false
     private(set) var trackPoints: [TrackPoint] = []
+    /// The recorded positions as coordinates, kept in step with `trackPoints` (the map reads them on every fix).
+    private(set) var track: [CLLocationCoordinate2D] = []
     private(set) var trackDistance = 0.0
     private(set) var recordingStarted: Date?
     /// Called with the finished track when recording stops, for the logbook.
     var onTrackFinished: ((TrackLog) -> Void)?
-
-    var track: [CLLocationCoordinate2D] { trackPoints.map(\.coordinate) }
 
     /// Speed over ground in knots, if the fix has one.
     var sog: Double? {
@@ -55,6 +55,7 @@ final class LocationTracker {
             }
         } else {
             trackPoints = location.map { [TrackPoint($0)] } ?? []
+            track = trackPoints.map(\.coordinate)
             trackDistance = 0
             recordingStarted = .now
             isRecording = true
@@ -78,6 +79,7 @@ final class LocationTracker {
     func clearTrack() {
         guard !isRecording else { return }
         trackPoints = []
+        track = []
         trackDistance = 0
         recordingStarted = nil
     }
@@ -92,6 +94,7 @@ final class LocationTracker {
             trackDistance += moved
         }
         trackPoints.append(TrackPoint(new))
+        track.append(new.coordinate)
     }
 }
 

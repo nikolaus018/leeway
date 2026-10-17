@@ -1,6 +1,8 @@
 import CoreLocation
 import Foundation
+import MapLibre
 import Testing
+import UIKit
 @testable import Leeway
 
 struct GPXTests {
@@ -284,3 +286,16 @@ struct LightCharacteristicTests {
     }
 }
 
+
+/// The reversed double-tap-drag zoom replaces MapLibre's own gesture, found by its shape: guard that
+/// MapLibre still has one with that shape, and the code that disables it keeps working.
+@MainActor struct MapGestureTests {
+    @Test func mapLibreHasItsQuickZoomGesture() {
+        let map = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        let found = (map.gestureRecognizers ?? []).contains {
+            guard let press = $0 as? UILongPressGestureRecognizer else { return false }
+            return press.numberOfTapsRequired == 1 && press.minimumPressDuration == 0
+        }
+        #expect(found, "ChartMapView.makeUIView looks for this gesture to replace it")
+    }
+}

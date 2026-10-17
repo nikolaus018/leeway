@@ -70,7 +70,7 @@ struct ChartMapView: UIViewRepresentable {
         quickZoom.numberOfTapsRequired = 1
         quickZoom.minimumPressDuration = 0
         quickZoom.delegate = c
-        c.quickZoom = quickZoom
+        var replacedBuiltIn = false
         for recognizer in map.gestureRecognizers ?? [] {
             if let double = recognizer as? UITapGestureRecognizer, double.numberOfTapsRequired == 2 {
                 tap.require(toFail: double)
@@ -79,9 +79,14 @@ struct ChartMapView: UIViewRepresentable {
             if let builtIn = recognizer as? UILongPressGestureRecognizer, builtIn.numberOfTapsRequired == 1,
                builtIn.minimumPressDuration == 0 {
                 builtIn.isEnabled = false
+                replacedBuiltIn = true
             }
         }
-        map.addGestureRecognizer(quickZoom)
+        // If MapLibre's own gesture couldn't be identified, leave it alone rather than run two.
+        if replacedBuiltIn {
+            c.quickZoom = quickZoom
+            map.addGestureRecognizer(quickZoom)
+        }
         tap.delegate = c
         press.delegate = c
         map.addGestureRecognizer(tap)

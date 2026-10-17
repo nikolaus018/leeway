@@ -383,7 +383,7 @@ struct PointQuery {
 }
 
 async fn sea_level(State(state): State<AppState>, headers: HeaderMap, Query(q): Query<PointQuery>) -> Result<Response, ApiError> {
-    if q.lat.abs() > 90.0 || q.lon.abs() > 180.0 {
+    if !(q.lat.abs() <= 90.0 && q.lon.abs() <= 180.0) {
         return Err(ApiError::bad("bad position"));
     }
     let level = state.sealevels.at(q.lat, q.lon).await.map_err(|e| ApiError(StatusCode::NOT_FOUND, format!("{e:#}")))?;

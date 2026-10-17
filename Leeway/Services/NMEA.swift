@@ -242,6 +242,8 @@ final class NMEAClient {
             payload = fields[5]
         } else {
             let key = fields[3] + fields[4]
+            // Part 1 starts a new message: parts left over from a lost one must not mix into it.
+            if number == 1 { fragments[key] = [:] }
             fragments[key, default: [:]][number] = fields[5]
             guard let parts = fragments[key], parts.count == count else { return }
             payload = (1...count).compactMap { parts[$0] }.joined()

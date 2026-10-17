@@ -13,6 +13,7 @@ Environment (all optional): VENVY_URL (default https://venvy.ringtwo.win), SEADA
 app: AISSTREAM_API_KEY, OPEN_METEO_API_KEY, AIS_BBOX, CACHE_MAX_GB, REQUIRE_CLIENT_HEADER.
 """
 import getpass
+import hashlib
 import http.cookiejar
 import json
 import os
@@ -36,6 +37,8 @@ SESSION_FILE = Path.home() / ".config" / "venvy" / f"{urllib.parse.urlparse(VENV
 # Folders this script owns on the server: files there that aren't local any more are deleted.
 MANAGED = ("src", "styles", "charts", ".cargo")
 CHUNK = 8 * 1024 * 1024
+# What was uploaded last time, by content hash: the server only lists sizes, and a rebuilt chart pack can keep its size.
+MANIFEST = Path.home() / ".config" / "venvy" / f"{APP_NAME}-uploaded.json"
 # Cloudflare turns away Python's default User-Agent (error 1010).
 USER_AGENT = "seadata-deploy/1.0 (+https://github.com/nikolaus018/leeway)"
 
@@ -220,11 +223,20 @@ def ship():
     # The app's root, one level only: it also holds the server's cache, which isn't ours to list.
     remote.update(venvy.remote_files(app_id, recursive=False))
 
-    changed = [p for p, f in local.items() if remote.get(p) != f.stat().st_size or f.stat().st_size < 1_000_000]
+    try:
+        uploaded = json.loads(MANIFEST.read_text())
+    except (OSError, ValueError):
+        uploaded = {}
+    digest = {p: hashlib.sha256(f.read_bytes()).hexdigest() for p, f in local.items()}
+    changed = [p for p, f in local.items()
+               if remote.get(p) != f.stat().st_size or uploaded.get(p) != digest[p]]
     gone = [p for p in remote if p.split("/")[0] in MANAGED and p not in local]
     say(f"Uploading {len(changed)} file(s), removing {len(gone)}")
     for path in changed:
         venvy.upload(app_id, path, local[path])
+        uploaded[path] = digest[path]
+        MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+        MANIFEST.write_text(json.dumps(uploaded))
     for path in gone:
         venvy.call("POST", f"/apps/{app_id}/files/op", {"operation": "delete", "path": path})
 

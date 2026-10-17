@@ -550,6 +550,8 @@ final class AppModel {
 
     private func routeChanged() {
         routeTask?.cancel()
+        // The "fastest route" figures belong to the last successful plan only.
+        weatherRouting = nil
         let points = route.coordinates
         let region = region(containing: points)
 
@@ -945,8 +947,9 @@ final class AppModel {
     }
 
     private static func saveLogbook(_ logbook: [TrackLog]) {
-        let data = try? JSONEncoder().encode(logbook)
+        // Long tracks make a big file: encode and write off the main thread.
         Task.detached(priority: .utility) {
+            let data = try? JSONEncoder().encode(logbook)
             try? FileManager.default.createDirectory(at: URL.applicationSupportDirectory, withIntermediateDirectories: true)
             try? data?.write(to: logbookFile, options: .atomic)
         }
