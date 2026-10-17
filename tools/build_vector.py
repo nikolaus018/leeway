@@ -135,14 +135,19 @@ def soundings(meta, code):
     west, north = meta["west"], meta["north"]
     lat_step, lon_step = meta["latStep"], meta["lonStep"]
     rows, cols = code.shape
-    near_land = ndimage.binary_dilation(code == LAND, iterations=2)
+    # Not right on the shore (the coastline would sit on the figures), but close to it: that is where
+    # a skipper reads depths.
+    near_land = ndimage.binary_dilation(code == LAND, iterations=1)
     out = []
     taken = np.zeros_like(code, dtype=bool)
-    for spacing, minzoom in ((48, 11), (24, 12), (12, 13), (7, 14)):
+    # (spacing in grid cells, first zoom, deepest metres shown). The grid is about 67 m a cell, finer
+    # than the source data (EMODnet, about 115 m), so 2 cells is as dense as the data can justify.
+    # Deep water gets fewer figures (the grid stores up to 127 m): nobody steers by them, and the file stays small.
+    for spacing, minzoom, deepest in ((32, 9, 127), (16, 10, 127), (8, 11, 60), (4, 12, 40), (3, 13, 35), (2, 14, 30)):
         rr, cc = np.mgrid[spacing // 2:rows:spacing, spacing // 2:cols:spacing]
         rr, cc = rr.ravel(), cc.ravel()
         values = code[rr, cc]
-        keep = (values != LAND) & (values >= 4) & ~near_land[rr, cc] & ~taken[rr, cc]
+        keep = (values != LAND) & (values >= 2) & (values <= deepest * 2) & ~near_land[rr, cc] & ~taken[rr, cc]
         for r, c, v in zip(rr[keep], cc[keep], values[keep]):
             taken[r, c] = True
             lon = west + (c + 0.5) * lon_step

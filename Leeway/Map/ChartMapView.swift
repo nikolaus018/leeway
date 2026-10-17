@@ -227,7 +227,9 @@ struct ChartMapView: UIViewRepresentable {
                                              options: [.tileSize: 256, .maximumZoomLevel: 7, .attributionInfos: []])
             style.addSource(source)
             let layer = MLNRasterStyleLayer(identifier: "radar", source: source)
-            layer.rasterOpacity = NSExpression(forConstantValue: 0.6)
+            layer.rasterOpacity = NSExpression(forConstantValue: 0.9)
+            layer.rasterSaturation = NSExpression(forConstantValue: 0.3)
+            layer.rasterContrast = NSExpression(forConstantValue: 0.25)
             layer.rasterFadeDuration = NSExpression(forConstantValue: 0)
             if let below = style.layer(withIdentifier: "live-track") {
                 style.insertLayer(layer, below: below)
@@ -268,6 +270,10 @@ struct ChartMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            if annotation is MLNUserLocation {
+                return (mapView.dequeueReusableAnnotationView(withIdentifier: BoatArrowView.reuseID) as? BoatArrowView)
+                    ?? BoatArrowView(reuseIdentifier: BoatArrowView.reuseID)
+            }
             guard let waypoint = annotation as? WaypointAnnotation else { return nil }
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: WaypointPin.reuseID) as? WaypointPin)
                 ?? WaypointPin(reuseIdentifier: WaypointPin.reuseID)
@@ -752,5 +758,54 @@ final class WaypointPin: MLNAnnotationView {
         default:
             break
         }
+    }
+}
+
+
+/// The boat's own position: an arrow that points the way it is heading (course over ground when
+/// moving, the compass when not), in place of the usual blue dot.
+final class BoatArrowView: MLNUserLocationAnnotationView {
+    static let reuseID = "boat"
+    private let arrow = CAShapeLayer()
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 40, height: 40)
+        // A pointed hull with a notch at the stern, tip up.
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: 20, y: 3))
+        path.addLine(to: CGPoint(x: 32, y: 35))
+        path.addLine(to: CGPoint(x: 20, y: 28))
+        path.addLine(to: CGPoint(x: 8, y: 35))
+        path.close()
+        arrow.path = path.cgPath
+        arrow.fillColor = UIColor(red: 0.0, green: 0.64, blue: 0.85, alpha: 1).cgColor
+        arrow.strokeColor = UIColor.white.cgColor
+        arrow.lineWidth = 2.5
+        arrow.lineJoin = .round
+        arrow.shadowColor = UIColor.black.cgColor
+        arrow.shadowOpacity = 0.45
+        arrow.shadowRadius = 3
+        arrow.shadowOffset = CGSize(width: 0, height: 1)
+        arrow.frame = bounds
+        layer.addSublayer(arrow)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func update() {
+        guard let mapView, let location = userLocation?.location else { return }
+        let moving = location.speed > 0.5 && location.course >= 0
+        let heading = moving ? location.course : (userLocation?.heading?.trueHeading ?? -1)
+        guard heading >= 0 else {
+            arrow.setAffineTransform(.identity)
+            return
+        }
+        // Screen angle: heading relative to where the top of the map points.
+        let angle = (heading - mapView.direction) * .pi / 180
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        arrow.setAffineTransform(CGAffineTransform(rotationAngle: angle))
+        CATransaction.commit()
     }
 }

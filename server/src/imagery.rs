@@ -150,8 +150,8 @@ impl Radar {
         }
         let (host, frames) = self.frames().await?;
         let Some(frame) = frames.into_iter().find(|f| f.time == time) else { return Ok(None) };
-        // 256 px, colour scheme 2 (universal blue), smoothed, snow shown.
-        let url = format!("{host}{}/256/{z}/{x}/{y}/2/1_1.png", frame.path);
+        // 256 px, colour scheme 6 (NEXRAD: greens to reds, which stand out on a blue chart), smoothed, snow shown.
+        let url = format!("{host}{}/256/{z}/{x}/{y}/6/1_1.png", frame.path);
         self.tiles.get(&format!("{time}/{z}/{x}/{y}.png"), || fetch(&self.http, &url)).await.map(Some)
     }
 }
