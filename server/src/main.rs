@@ -290,6 +290,7 @@ async fn info(State(state): State<AppState>, headers: HeaderMap) -> Response {
                 "Weather, waves, currents and sea level: Open-Meteo.com (CC BY 4.0), models by ItaliaMeteo-ARPAE, DWD, ECMWF, NOAA, Météo-France and others",
                 "Seamarks: OpenSeaMap (CC BY-SA 2.0)",
                 "Charts: EMODnet Bathymetry (CC BY 4.0), © OpenStreetMap contributors (ODbL)",
+                "Coastline, sea names, traffic separation, cables, pipelines and platforms: Croatian Hydrographic Institute (HHI)",
                 "Satellite: Sentinel-2 cloudless 2016 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016, CC BY 4.0)",
                 "Rain radar: RainViewer",
                 "Warnings: MeteoAlarm and the national weather services (CC BY 4.0)",

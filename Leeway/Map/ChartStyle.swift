@@ -148,7 +148,10 @@ struct ChartStyle: Equatable {
                                     "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.4, 12, 1.0]]))
         for pack in packs {
             let source = "chart-\(pack.id)"
-            layers += depthLayers(prefix: "pack-\(pack.id)", source: source, contours: Self.packContours, satellite: satellite)
+            // Zoomed far out, the worldwide depth draws it: the pack's coarse low-zoom tiles look blocky and
+            // end in straight edges at its boundary.
+            layers += depthLayers(prefix: "pack-\(pack.id)", source: source, contours: Self.packContours, satellite: satellite,
+                                  minzoom: 9)
             layers.append(layer("pack-\(pack.id)-area-fill", "fill", source: source, sourceLayer: "area", minzoom: 9,
                                 filter: ["all", ["==", ["geometry-type"], "Polygon"],
                                          ["in", ["get", "kind"], ["literal", ["restricted", "tss_separation", "marine_farm"]]]],
@@ -158,6 +161,10 @@ struct ChartStyle: Equatable {
             layers.append(layer("pack-\(pack.id)-coast", "line", source: source, sourceLayer: "land",
                                 paint: ["line-color": satellite ? "rgba(255,255,255,0.5)" : c.coast,
                                         "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 14, 1.2]]))
+            // The official coastline (Croatian Hydrographic Institute) over it, where the pack has it.
+            layers.append(layer("pack-\(pack.id)-coast-official", "line", source: source, sourceLayer: "coastline",
+                                paint: ["line-color": satellite ? "rgba(255,255,255,0.6)" : c.coast,
+                                        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 14, 1.4]]))
         }
 
         // Land detail over the chart's land.
@@ -285,7 +292,8 @@ struct ChartStyle: Equatable {
     }
 
     /// Depth areas coloured by band, contours, and the bold safety contour.
-    private func depthLayers(prefix: String, source: String, contours: [Double], satellite: Bool) -> [[String: Any]] {
+    private func depthLayers(prefix: String, source: String, contours: [Double], satellite: Bool,
+                             minzoom: Double = 0) -> [[String: Any]] {
         let c = colours
         let fill: [Any] = ["case",
                            ["<", ["get", "min"], safetyDepth], c.shallow,
@@ -298,14 +306,14 @@ struct ChartStyle: Equatable {
         let opacity: Any = satellite ? ["case", ["<", ["get", "min"], safetyDepth], 0.45, 0.0] as [Any] : 1.0
         let safety = Self.safetyContour(safetyDepth, in: contours)
         return [
-            layer("\(prefix)-area", "fill", source: source, sourceLayer: "depare",
+            layer("\(prefix)-area", "fill", source: source, sourceLayer: "depare", minzoom: minzoom > 0 ? minzoom : nil,
                   paint: ["fill-color": fill, "fill-opacity": opacity, "fill-antialias": false]),
-            layer("\(prefix)-contour", "line", source: source, sourceLayer: "depcnt", minzoom: 6,
+            layer("\(prefix)-contour", "line", source: source, sourceLayer: "depcnt", minzoom: max(6, minzoom),
                   filter: ["all", ["!=", ["get", "depth"], safety],
                            ["any", [">=", ["zoom"], 10], [">=", ["get", "depth"], 10]]],
                   paint: ["line-color": c.contour, "line-opacity": satellite ? 0.6 : 0.8,
                           "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.3, 14, 0.9]]),
-            layer("\(prefix)-safety", "line", source: source, sourceLayer: "depcnt", minzoom: 6,
+            layer("\(prefix)-safety", "line", source: source, sourceLayer: "depcnt", minzoom: max(6, minzoom),
                   filter: ["==", ["get", "depth"], safety],
                   paint: ["line-color": satellite ? "#FFFFFF" : c.safety,
                           "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.8, 14, 2.2]]),
@@ -319,7 +327,8 @@ struct ChartStyle: Equatable {
         let areaLabel: [Any] = ["match", ["get", "kind"],
                                 "restricted", ["coalesce", ["get", "n"], "Restricted area"],
                                 "anchorage", ["coalesce", ["get", "n"], "Anchorage"],
-                                "cable", "Cable", "pipeline", "Pipeline", "marine_farm", "Fish farm",
+                                "cable", ["coalesce", ["get", "n"], "Cable"], "pipeline", ["coalesce", ["get", "n"], "Pipeline"],
+                                "marine_farm", "Fish farm",
                                 "seabed", ["coalesce", ["get", "c"], ""], ""]
         var layers: [[String: Any]] = [
             // Dash patterns can't vary per feature: one layer per pattern.
@@ -341,6 +350,15 @@ struct ChartStyle: Equatable {
                    filter: ["all", ["==", ["geometry-type"], "LineString"], ["in", ["get", "kind"], ["literal", ["cable", "pipeline"]]]],
                    layout: ["text-field": areaLabel, "text-font": ["Noto Sans Italic"], "text-size": 10, "symbol-placement": "line"],
                    paint: ["text-color": c.magenta, "text-halo-color": c.halo, "text-halo-width": 1]),
+            // Offshore platforms (official list).
+            layer("\(id)-platform", "circle", source: source, sourceLayer: "area", minzoom: 9,
+                  filter: ["==", ["get", "kind"], "platform"],
+                  paint: ["circle-radius": 5, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": c.magenta, "circle-stroke-width": 2]),
+            symbol("\(id)-platform-label", source: source, sourceLayer: "area", minzoom: 10,
+                   filter: ["==", ["get", "kind"], "platform"],
+                   layout: ["text-field": ["get", "n"], "text-font": ["Noto Sans Italic"], "text-size": 10.5,
+                            "text-anchor": "top", "text-offset": ["literal", [0, 0.8]], "text-optional": true],
+                   paint: ["text-color": c.magenta, "text-halo-color": c.halo, "text-halo-width": 1]),
             layer("\(id)-bridge", "line", source: source, sourceLayer: "bridge", minzoom: 11,
                   paint: ["line-color": c.ink, "line-width": 3]),
             layer("\(id)-sector-arc", "line", source: source, sourceLayer: "lightsector", minzoom: 11, visible: showSeamarks,
@@ -357,10 +375,13 @@ struct ChartStyle: Equatable {
                    paint: ["text-color": c.sounding]),
             symbol("\(id)-names", source: source, sourceLayer: "names",
                    layout: ["text-field": ["get", "n"], "text-font": ["Noto Sans Italic"],
-                            "text-size": ["match", ["get", "t"], "strait", 12, "bay", 11.5, 10.5],
+                            "text-size": ["case", ["==", ["get", "t"], "sea"],
+                                          ["match", ["get", "lvl"], "regija", 15, "podregija", 12.5, 11],
+                                          ["match", ["get", "t"], "strait", 12, "bay", 11.5, 10.5]],
+                            "text-letter-spacing": ["case", ["==", ["get", "t"], "sea"], 0.15, 0.0],
                             "text-max-width": 7, "text-anchor": ["match", ["get", "t"], "cape", "left", "center"],
                             "text-offset": ["match", ["get", "t"], "cape", ["literal", [0.6, 0]], ["literal", [0, 0]]]],
-                   paint: ["text-color": ["match", ["get", "t"], ["strait", "bay"], c.waterInk, c.landInk],
+                   paint: ["text-color": ["match", ["get", "t"], ["strait", "bay", "sea"], c.waterInk, c.landInk],
                            "text-halo-color": c.halo, "text-halo-width": 1.2]),
         ]
         // Lights: the flare, then the symbol, then the label.

@@ -18,8 +18,10 @@ build_region.py runs this at the end. Layers (attribute names are what the app's
     seamark       t type, n name, c category, col colour, l light, d depth, wl water level,
                   sym symbol key, ls short light characteristic, lc light colour (R/G/W)
     lightsector   sector arcs and limits, col (R/G/W/Y), l light
-    area          kind, n name, c category, res restriction
-    names         t type, n name
+    area          kind, n name, c category, res restriction (traffic separation, cables, pipelines and
+                  platforms from HHI's open data when tools/fetch_hhi.py has been run, else OSM's)
+    names         t type, n name (t=sea, lvl: named seas from HHI)
+    coastline     official coastline (HHI)
     bridge        h clearance, n name
 """
 import json
@@ -34,6 +36,7 @@ from pathlib import Path
 
 import contourpy
 import numpy as np
+from shapely.geometry import shape
 from scipy import ndimage
 
 CHARTS = Path(__file__).resolve().parent.parent / "Leeway" / "Charts"
@@ -237,6 +240,72 @@ def land_polygons(rings):
     return [feature({"type": "Polygon", "coordinates": [ring_coords(r)]}) for r in rings if len(r) >= 3]
 
 
+# MARK: Croatian Hydrographic Institute (HHI) open data, see fetch_hhi.py
+
+HHI_CACHE = Path(__file__).resolve().parent / ".hhi-cache"
+# What the OSM seamark data says about these, HHI's official layers replace.
+HHI_REPLACES = {"tss_separation", "tss_lane", "cable", "pipeline"}
+HHI_TSS_KIND = {
+    "Traffic separation zone": "tss_separation",
+    "Traffic separation scheme lane part": "tss_lane",
+    "Precautionary area": "tss_lane",
+    "Inshore traffic zone": "tss_lane",
+}
+# Sea area levels, from the big named seas to single bays: when their names appear.
+HHI_SEA_ZOOM = {"regija": 7, "podregija": 9, "mikroregija": 11}
+
+
+def hhi_features(name):
+    path = HHI_CACHE / f"{name}.geojson"
+    return json.loads(path.read_text())["features"] if path.exists() else []
+
+
+def round_coords(value):
+    return [round_coords(v) for v in value] if isinstance(value[0], list) else [r6(v) for v in value]
+
+
+def title_case(text):
+    """'ZALJEV VALUN' -> 'Zaljev Valun'."""
+    return " ".join(w[:1] + w[1:].lower() for w in text.split())
+
+
+def hhi_layers():
+    """Official traffic separation, cables, pipelines and platforms (replacing OSM's), sea area
+    names, and the coastline, or three empty lists when fetch_hhi.py hasn't been run."""
+    areas, names, coast = [], [], []
+    for f in hhi_features("tss"):
+        p = f["properties"]
+        kind = HHI_TSS_KIND.get(p.get("Vrsta"))
+        if kind and f.get("geometry"):
+            props = {"kind": kind, "n": p.get("Naziv", "").strip() or p["Vrsta"]}
+            areas.append(feature({**f["geometry"], "coordinates": round_coords(f["geometry"]["coordinates"])}, props, 8))
+    for group, kind, minzoom in (("cable_power", "cable", 10), ("cable_telecom", "cable", 10), ("pipe_gas", "pipeline", 10),
+                                 ("pipe_oil", "pipeline", 10), ("pipe_water", "pipeline", 11), ("pipe_outfall", "pipeline", 12)):
+        for f in hhi_features(group):
+            if f.get("geometry"):
+                props = {"kind": kind}
+                if (name := (f["properties"].get("Naziv") or "").strip()):
+                    props["n"] = name
+                areas.append(feature({**f["geometry"], "coordinates": round_coords(f["geometry"]["coordinates"])}, props, minzoom))
+    for f in hhi_features("platform"):
+        if f.get("geometry"):
+            props = {"kind": "platform", "n": (f["properties"].get("Naziv") or "").strip()}
+            areas.append(feature({**f["geometry"], "coordinates": round_coords(f["geometry"]["coordinates"])}, props, 9))
+    for f in hhi_features("sea"):
+        p = f["properties"]
+        zoom = HHI_SEA_ZOOM.get((p.get("podjela") or "").strip())
+        if zoom is None or not f.get("geometry") or not (p.get("Naziv") or "").strip():
+            continue
+        point = shape(f["geometry"]).representative_point()
+        names.append(feature({"type": "Point", "coordinates": [r6(point.x), r6(point.y)]},
+                             {"t": "sea", "n": title_case(p["Naziv"].strip()), "lvl": p["podjela"].strip()}, zoom))
+    for path in sorted(HHI_CACHE.glob("coast_*.geojson")):
+        for f in hhi_features(path.stem):
+            if f.get("geometry"):
+                coast.append(feature({**f["geometry"], "coordinates": round_coords(f["geometry"]["coordinates"])}))
+    return areas, names, coast
+
+
 # MARK: OpenStreetMap details
 
 AREA_KINDS = {
@@ -403,6 +472,13 @@ def build(pack_id, osm_paths=()):
     }
     if osm_paths:
         layers["lightsector"], layers["area"] = osm_details(osm_paths, meta["west"], meta["south"], meta["east"], meta["north"])
+    hhi_areas, hhi_names, hhi_coast = hhi_layers()
+    if hhi_areas:
+        # HHI's official layers replace OSM's for the same things.
+        layers["area"] = [a for a in layers.get("area", []) if a["properties"].get("kind") not in HHI_REPLACES] + hhi_areas
+        layers["names"] = layers["names"] + hhi_names
+        layers["coastline"] = hhi_coast
+        print(f"  HHI: {len(hhi_areas)} area features, {len(hhi_names)} sea names, {len(hhi_coast)} coastline parts", flush=True)
 
     out = CHARTS / f"{pack_id}.pmtiles"
     with tempfile.TemporaryDirectory() as tmp:
