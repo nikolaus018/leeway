@@ -326,6 +326,148 @@ def hhi_layers():
     return areas, names, coast
 
 
+# MARK: Official aids to navigation (Plovput), added where OpenSeaMap has none
+
+PLOVPUT_LIGHT_RHYTHM = {"Bl": "Fl", "DBl": "LFl", "K": "Q", "VK": "VQ", "Izo": "Iso", "Pr": "Oc", "Mo": "Mo"}
+PLOVPUT_COLOUR = {"B": "W", "C": "R", "Z": "G", "Ž": "Y", "P": "Y"}
+
+
+def plovput_light(text, height, range_nm):
+    """'Z Bl 3s (0,5+2,5)s' -> 'FlG.3s 9m 4M', in the notation the app parses; None when it isn't a light."""
+    if not text or "stalno" in text and not re.search(r"\d+s", text):
+        return "F" + PLOVPUT_COLOUR.get(text.strip()[:1], "W") if text and "stalno" in text else None
+    m = re.match(r"\s*([BCZŽP]+)\s+(Bl|DBl|K|VK|Izo|Pr|Mo)(\([^)]*\))?\s*(\d+(?:,\d+)?)s", text)
+    if not m:
+        return None
+    colour = PLOVPUT_COLOUR.get(m.group(1)[0], "W")
+    period = m.group(4).replace(",", ".")
+    out = f"{PLOVPUT_LIGHT_RHYTHM[m.group(2)]}{m.group(3) or ''}{colour}.{period}s"
+    if height:
+        out += f" {height:g}m"
+    if range_nm:
+        out += f" {range_nm}M"
+    return out
+
+
+def plovput_kind(tip, description, colour, topmark):
+    """(t, category, colour) for a register entry, from its type code and the words describing it."""
+    words = " ".join(filter(None, [description, colour, topmark])).lower()
+    shape = {12: "beacon", 13: "beacon", 14: "buoy", 15: "buoy"}.get(tip)
+    if shape is None:
+        return None
+    if "žuta iznad crne" in words or "vrhom prema dolje" in words and "dva crna stošca" in words:
+        return f"{shape}_cardinal", "south", "yellow;black"
+    if "crna iznad žute" in words or ("vrhom prema gore" in words and "dva crna stošca" in words):
+        return f"{shape}_cardinal", "north", "black;yellow"
+    if "crna sa širokim žutim pojasom" in words or "bazom prema bazi" in words:
+        return f"{shape}_cardinal", "east", "black;yellow;black"
+    if "žuta sa širokim crnim pojasom" in words or "vrhom prema vrhu" in words:
+        return f"{shape}_cardinal", "west", "yellow;black;yellow"
+    if "crna" in words and ("crven" in words or "dvije crne kugle" in words):
+        return f"{shape}_isolated_danger", None, "black;red;black"
+    if "crvene i bijele" in words or "crveno-bijel" in words:
+        return f"{shape}_safe_water", None, "red;white"
+    if "zelen" in words:
+        return f"{shape}_lateral", "starboard", "green"
+    if "crven" in words:
+        return f"{shape}_lateral", "port", "red"
+    if "žut" in words:
+        return f"{shape}_special_purpose", None, "yellow"
+    return shape, None, None
+
+
+def merge_plovput(meta):
+    """Adds the register's active aids that have no OpenSeaMap mark within 100 m. Earlier additions (src pv)
+    are dropped first, so rebuilding doesn't pile them up."""
+    path = HHI_CACHE / "plovput.geojson"
+    marks = [m for m in meta["seamarks"] if m.get("src") != "pv"]
+    if not path.exists():
+        meta["seamarks"] = marks
+        return 0
+    index = {}
+    for m in marks:
+        if m["t"] in ("rock", "wreck", "obstruction", "mooring", "anchorage", "harbour", "small_craft_facility", "notice",
+                      "marine_farm", "restricted_area"):
+            continue
+        index.setdefault((round(m["la"] * 100), round(m["lo"] * 100)), []).append(m)
+
+    def has_mark(lat, lon):
+        c = math.cos(math.radians(lat))
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                for m in index.get((round(lat * 100) + dy, round(lon * 100) + dx), []):
+                    if math.hypot((m["la"] - lat) * 111320, (m["lo"] - lon) * 111320 * c) < 100:
+                        return True
+        return False
+
+    added = 0
+    for f in json.loads(path.read_text())["features"]:
+        p, g = f["properties"], f.get("geometry")
+        if not g or p.get("status_objekta") != "Aktivan":
+            continue
+        lon, lat = g["coordinates"][:2]
+        if not (meta["west"] < lon < meta["east"] and meta["south"] < lat < meta["north"]) or has_mark(lat, lon):
+            continue
+        tip = p.get("tip_objekta")
+        light = plovput_light(p.get("kar_svjetla"), p.get("visina_srm"), p.get("domet_svjetla"))
+        mark = {"la": round(lat, 6), "lo": round(lon, 6), "src": "pv"}
+        if name := (p.get("naziv_objekta") or "").strip():
+            mark["n"] = name
+        if tip in (9, 10, 17):
+            mark["t"] = "light_major"
+        elif tip in (11, 16, 22):
+            mark["t"] = "light_minor"
+        elif (kind := plovput_kind(tip, p.get("opis_objekta"), p.get("boja_plutace"), p.get("oblik_boja_vrh"))):
+            mark["t"] = kind[0]
+            if kind[1]:
+                mark["c"] = kind[1]
+            if kind[2]:
+                mark["col"] = kind[2]
+        else:
+            continue
+        if light:
+            mark["l"] = light
+        elif mark["t"].startswith("light"):
+            continue  # a light that doesn't show one isn't worth a symbol
+        marks.append(mark)
+        added += 1
+    meta["seamarks"] = marks
+    return added
+
+
+# MARK: Protected areas (Croatian Agency for the Environment and Nature, via Bioportal)
+
+DATA = Path(__file__).resolve().parent / "data"
+PROTECTED_NOTE = {
+    "Nacionalni park": "National park: entry rules and fees apply",
+    "Park prirode": "Nature park: entry rules and fees apply",
+    "Posebni rezervat": "Special reserve: restricted, check the rules",
+    "Strogi rezervat": "Strict reserve: no entry",
+}
+
+
+def title_name(text):
+    return title_case(text) if text.isupper() else text
+
+
+def protected_features():
+    """National and nature parks, nature reserves, and the strict-protection sea zones inside parks, as
+    `area` features (kind protected / protected_zone / protected_strict). The data in tools/data was
+    fetched from the Bioportal WFS and simplified to about 50 m (that service only answers browsers)."""
+    out = []
+    areas, zones = DATA / "protected_areas.json", DATA / "protected_zones.json"
+    if areas.exists():
+        for name, category, polygons in json.loads(areas.read_text()):
+            props = {"kind": "protected", "n": title_name(name), "c": PROTECTED_NOTE.get(category, category)}
+            out.append(feature({"type": "MultiPolygon", "coordinates": polygons}, props, 7))
+    if zones.exists():
+        for park, zone, level, polygons in json.loads(zones.read_text()):
+            kind = "protected_strict" if level == 1 else "protected_zone"
+            note = "strictest protection zone: no entry" if level == 1 else "strict protection zone: restricted"
+            out.append(feature({"type": "MultiPolygon", "coordinates": polygons}, {"kind": kind, "n": park, "c": note}, 9))
+    return out
+
+
 # MARK: OpenStreetMap details
 
 AREA_KINDS = {
@@ -478,6 +620,7 @@ def build(pack_id, osm_paths=()):
     if not shutil.which("tippecanoe"):
         sys.exit("tippecanoe not found: brew install tippecanoe")
     meta, code, rings = load_pack(pack_id)
+    print(f"  {merge_plovput(meta)} official aids to navigation added", flush=True)
     print(f"Vector chart for {meta['name']}: grid {code.shape[0]}×{code.shape[1]}", flush=True)
     areas, contours = depth_layers(meta, code)
     print(f"  {len(areas)} depth areas, {len(contours)} contour sets", flush=True)
@@ -492,6 +635,7 @@ def build(pack_id, osm_paths=()):
     }
     if osm_paths:
         layers["lightsector"], layers["area"] = osm_details(osm_paths, meta["west"], meta["south"], meta["east"], meta["north"])
+    layers["area"] = layers.get("area", []) + protected_features()
     hhi_areas, hhi_names, hhi_coast = hhi_layers()
     if hhi_areas:
         # HHI's official layers replace OSM's for the same things.

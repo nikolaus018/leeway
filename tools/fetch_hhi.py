@@ -6,6 +6,7 @@
 They come from HHI's public ArcGIS WFS services (listed in the national spatial data catalogue,
 geoportal.nipp.hr) as GeoJSON into tools/.hhi-cache/, where build_vector.py picks them up:
 
+    plovput.geojson   official aids to navigation (lights, beacons, buoys)
     coast_*.geojson   coastline by county
     sea.geojson       named sea areas (regions, subregions, microregions)
     tss.geojson       traffic separation schemes
@@ -50,8 +51,16 @@ def get(url):
         return response.read()
 
 
+# Plovput's register of aids to navigation (lights, beacons, buoys): official, and fuller than OpenSeaMap.
+PLOVPUT = ("https://rosp.plovput.hr/plovput_ows/ows?service=WFS&version=2.0.0&request=GetFeature"
+           "&typeNames=plovput_ows:RospObjekti&outputFormat=application/json&srsName=EPSG:4326")
+
+
 def main():
     CACHE.mkdir(exist_ok=True)
+    data = get(PLOVPUT)
+    (CACHE / "plovput.geojson").write_bytes(data)
+    print(f"plovput: {len(json.loads(data)['features'])} aids to navigation", flush=True)
     for name, service in SERVICES.items():
         capabilities = get(f"{BASE}/{service}/WFSServer?service=WFS&request=GetCapabilities").decode()
         layer = re.search(r"<(?:wfs:)?Name>([^<]+)</(?:wfs:)?Name>", capabilities)

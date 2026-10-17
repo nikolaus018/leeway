@@ -159,6 +159,8 @@ struct AboutView: View {
                 Source(name: "Detailed charts", detail: "EMODnet Bathymetry (CC BY 4.0), © OpenStreetMap contributors (ODbL), OpenSeaMap")
                 Source(name: "Coastline, sea names, traffic separation, cables, pipelines",
                        detail: "Croatian Hydrographic Institute (HHI), open data with attribution")
+                Source(name: "Aids to navigation, protected areas",
+                       detail: "Plovput d.o.o. register; Croatian Agency for the Environment and Nature (Bioportal)")
                 Source(name: "Worldwide depth", detail: "AWS Terrain Tiles: GEBCO, ETOPO1, NOAA and others")
                 Source(name: "Seamarks outside charts", detail: "© OpenSeaMap contributors (CC BY-SA 2.0)")
                 Source(name: "Weather, waves, currents, tides", detail: "Open-Meteo.com (CC BY 4.0); models by ItaliaMeteo-ARPAE, DWD, ECMWF, NOAA, Météo-France")

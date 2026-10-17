@@ -53,7 +53,10 @@ Croatia and its waters, for now: the map itself is free to go anywhere, but the 
 gathers AIS, the wind grid, MeteoAlarm warnings and place search for Croatia only (`config::CROATIA`,
 `COUNTRIES` in `warnings.rs`). Official coastline, sea names, traffic separation schemes, cables,
 pipelines and platforms come from the Croatian Hydrographic Institute's open data
-(`tools/fetch_hhi.py`, used by `tools/build_vector.py`). Covering another country means widening those.
+(`tools/fetch_hhi.py`, used by `tools/build_vector.py`). The official register of aids to navigation (Plovput)
+adds the lights, beacons and buoys OpenSeaMap lacks. National and nature parks, special reserves and the
+strict-protection sea zones come from the Bioportal data in `tools/data/` (that service only answers browsers,
+so the snapshot is committed). Covering another country means widening those.
 
 ## Architecture
 

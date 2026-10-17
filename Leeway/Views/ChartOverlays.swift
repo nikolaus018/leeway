@@ -268,6 +268,9 @@ struct InspectorCard: View {
         case "pipeline": "Submarine pipeline"
         case "seabed": "Seabed"
         case "marine_farm": "Fish farm"
+        case "protected": "Protected area"
+        case "protected_zone": "Strict protection zone"
+        case "protected_strict": "Strictest protection zone"
         default: kind.capitalized
         }
     }

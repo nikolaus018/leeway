@@ -337,6 +337,26 @@ struct ChartStyle: Equatable {
                                 "marine_farm", "Fish farm",
                                 "seabed", ["coalesce", ["get", "c"], ""], ""]
         var layers: [[String: Any]] = [
+            // Protected areas and the strict-protection zones inside parks (official data), drawn first.
+            layer("\(id)-protected-area-fill", "fill", source: source, sourceLayer: "area", minzoom: 7,
+                  filter: ["in", ["get", "kind"], ["literal", ["protected", "protected_zone", "protected_strict"]]],
+                  paint: ["fill-color": ["match", ["get", "kind"], "protected", "#2E9E5B", c.magenta],
+                          "fill-opacity": ["match", ["get", "kind"], "protected_strict", 0.22, "protected_zone", 0.14, 0.07]]),
+            layer("\(id)-protected-area-line", "line", source: source, sourceLayer: "area", minzoom: 7,
+                  filter: ["==", ["get", "kind"], "protected"],
+                  paint: ["line-color": "#2E9E5B", "line-width": 1.6, "line-opacity": 0.9, "line-dasharray": [4, 2]]),
+            layer("\(id)-protected-strict-area-line", "line", source: source, sourceLayer: "area", minzoom: 9,
+                  filter: ["in", ["get", "kind"], ["literal", ["protected_zone", "protected_strict"]]],
+                  paint: ["line-color": c.magenta, "line-opacity": 0.95,
+                          "line-width": ["match", ["get", "kind"], "protected_strict", 2.4, 1.4]]),
+            symbol("\(id)-protected-label", source: source, sourceLayer: "area", minzoom: 8,
+                   filter: ["in", ["get", "kind"], ["literal", ["protected", "protected_zone", "protected_strict"]]],
+                   layout: ["text-field": ["case", ["==", ["get", "kind"], "protected"], ["get", "n"],
+                                           ["concat", ["get", "n"], "\n", ["get", "c"]]],
+                            "text-font": ["Noto Sans Italic"], "text-size": 11, "text-max-width": 9,
+                            "symbol-placement": "point", "text-padding": 6],
+                   paint: ["text-color": ["match", ["get", "kind"], "protected", "#2E9E5B", c.magenta],
+                           "text-halo-color": c.halo, "text-halo-width": 1.2]),
             // Dash patterns can't vary per feature: one layer per pattern.
             layer("\(id)-area-line", "line", source: source, sourceLayer: "area", minzoom: 10,
                   filter: ["in", ["get", "kind"], ["literal", ["restricted", "anchorage", "mooring", "tss_lane", "fairway", "marine_farm"]]],
