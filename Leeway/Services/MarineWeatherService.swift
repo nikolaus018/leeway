@@ -25,7 +25,10 @@ struct Conditions: Equatable {
         }
     }
 
-    var isBura: Bool { windName == "Bura" }
+    /// Only a real breeze gets a name; under 5 kn it's just light airs.
+    var description: String { windSpeed < 5 ? "light airs" : windName.lowercased() }
+
+    var isBura: Bool { windName == "Bura" && windSpeed >= 8 }
 }
 
 /// Weather models in order of preference; high-resolution ones resolve the gusty bura.

@@ -69,6 +69,9 @@ final class AppModel {
     private(set) var departureOptions: [DepartureOption] = []
     var inspection: Inspection?
     var camera = MapCamera()
+    /// Forecast at the boat's position (or Rijeka before the first GPS fix).
+    private(set) var localForecast: RouteForecast?
+    private var localForecastFetched: (coordinate: CLLocationCoordinate2D, at: Date)?
 
     let regions = ChartRegion.bundled()
     let location = LocationTracker()
@@ -283,6 +286,16 @@ final class AppModel {
     }
 
     // MARK: Forecast & planning
+
+    func refreshLocalWeather() {
+        let here = location.location?.coordinate ?? CLLocationCoordinate2D(latitude: 45.3245, longitude: 14.4385)
+        if let last = localForecastFetched, Geo.distanceNM(last.coordinate, here) < 5, Date.now.timeIntervalSince(last.at) < 1800 { return }
+        localForecastFetched = (here, .now)
+        Task {
+            if let forecast = try? await weather.forecast(along: [here, here]) { localForecast = forecast }
+            else { localForecastFetched = nil }
+        }
+    }
 
     func refreshForecast() {
         forecastTask?.cancel()

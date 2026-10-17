@@ -170,3 +170,49 @@ final class InspectView: MKAnnotationView {
 
     required init?(coder: NSCoder) { fatalError() }
 }
+
+struct LegAnnotationData: Equatable {
+    var text: String
+    var latitude: Double
+    var longitude: Double
+    var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
+}
+
+/// Course and distance of a leg, shown at its midpoint.
+final class LegAnnotation: NSObject, MKAnnotation {
+    let text: String
+    let coordinate: CLLocationCoordinate2D
+    init(text: String, coordinate: CLLocationCoordinate2D) {
+        self.text = text
+        self.coordinate = coordinate
+    }
+}
+
+final class LegLabelView: MKAnnotationView {
+    static let reuseID = "leg"
+    private let label = UILabel()
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        backgroundColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.12, alpha: 0.88) : UIColor(white: 1, alpha: 0.9) }
+        layer.cornerRadius = 11
+        layer.borderWidth = 1
+        layer.borderColor = UIColor.tintColor.withAlphaComponent(0.5).cgColor
+        label.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .tintColor
+        label.textAlignment = .center
+        addSubview(label)
+        displayPriority = MKFeatureDisplayPriority(rawValue: 700)
+        collisionMode = .rectangle
+        isUserInteractionEnabled = false
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(_ text: String) {
+        label.text = text
+        label.sizeToFit()
+        bounds = CGRect(x: 0, y: 0, width: label.bounds.width + 14, height: 22)
+        label.frame = bounds
+    }
+}

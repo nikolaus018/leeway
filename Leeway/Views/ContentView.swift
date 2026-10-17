@@ -17,6 +17,7 @@ struct ContentView: View {
             legHazards: model.legHazards,
             track: model.location.track,
             samples: model.plan?.samples ?? [],
+            legLabels: legLabels,
             inspected: model.inspection?.coordinate,
             isEditing: model.isEditing,
             tracking: model.tracking,
@@ -66,6 +67,19 @@ struct ContentView: View {
             if editing { detent = .collapsed }
         }
         .task { model.location.start() }
+    }
+}
+
+private extension ContentView {
+    /// "128° 4.2 NM" at the middle of each leg worth labelling.
+    var legLabels: [LegAnnotationData] {
+        guard let plan = model.plan, !model.isEditing else { return [] }
+        return plan.legs.compactMap { leg in
+            guard leg.distance >= 0.4, leg.index + 1 < model.path.count else { return nil }
+            let mid = Geo.interpolate(model.path[leg.index], model.path[leg.index + 1], fraction: 0.5)
+            let text = String(format: "%03.0f° · %.1f NM", leg.bearing, leg.distance)
+            return LegAnnotationData(text: text, latitude: mid.latitude, longitude: mid.longitude)
+        }
     }
 }
 

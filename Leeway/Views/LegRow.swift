@@ -54,7 +54,7 @@ struct LegRow: View {
     private var details: String {
         var parts = [String(format: "%.1f kn avg", leg.averageSOG)]
         if leg.maxWind > 0 {
-            parts.append("\(Int(leg.maxWind.rounded())) kn \(leg.maxWind >= 8 ? (leg.windName ?? "wind").lowercased() : "wind")")
+            parts.append("\(Int(leg.maxWind.rounded())) kn \(leg.maxWind >= 5 ? (leg.windName ?? "wind").lowercased() : "light airs")")
             if sailing {
                 parts.append(leg.motoringFraction > 0.5 ? "Motoring" : leg.tacking ? "Beating" : Polar.pointOfSail(twa: leg.meanTWA))
             }

@@ -1,3 +1,4 @@
+import Charts
 import CoreLocation
 import SwiftUI
 
@@ -64,6 +65,8 @@ private struct HomeList: View {
                 Text("Or long-press anywhere on the chart to drop a start point.")
             }
 
+            WeatherHereSection()
+
             TrackSection()
 
             if !model.savedRoutes.isEmpty {
@@ -97,6 +100,76 @@ private struct HomeList: View {
                 }
             }
         }
+    }
+}
+
+private struct WeatherHereSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Section {
+            if let forecast = model.localForecast, let series = forecast.points.first {
+                let now = series.conditions(at: .now)
+                let hours = (0...24).map { Date.now.addingTimeInterval(Double($0) * 3600) }
+                let outlook = hours.map { ($0, series.conditions(at: $0)) }
+                HStack(spacing: 14) {
+                    Image(systemName: "location.north.fill")
+                        .font(.title)
+                        .rotationEffect(.degrees(now.windFrom + 180))
+                        .foregroundStyle(WindScale.color(now.windSpeed))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(Int(now.windSpeed.rounded())) kn \(now.description)")
+                            .font(.title3.weight(.semibold))
+                        Text("From \(Geo.compassPoint(now.windFrom)) · gusts \(Int(now.gust.rounded())) kn"
+                             + (now.waveHeight.flatMap { $0 >= 0.1 ? String(format: " · waves %.1f m", $0) : nil } ?? ""))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Chart {
+                    ForEach(outlook, id: \.0) { time, c in
+                        AreaMark(x: .value("Time", time), yStart: .value("Wind", c.windSpeed), yEnd: .value("Gusts", c.gust))
+                            .foregroundStyle(.orange.opacity(0.25))
+                        LineMark(x: .value("Time", time), y: .value("Wind", c.windSpeed))
+                            .foregroundStyle(.tint)
+                            .interpolationMethod(.catmullRom)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
+                        AxisGridLine()
+                        AxisValueLabel(format: .dateTime.hour())
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine()
+                        AxisValueLabel { if let v = value.as(Double.self) { Text("\(Int(v))") } }
+                    }
+                }
+                .frame(height: 110)
+                let buraGust = outlook.filter { $0.1.isBura }.map(\.1.gust).max() ?? 0
+                if buraGust >= 25 {
+                    Label("Bura in the next 24 h, gusts to \(Int(buraGust.rounded())) kn", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
+            } else {
+                Label {
+                    Text("Loading forecast…")
+                } icon: {
+                    ProgressView()
+                }
+                .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text(model.location.location == nil ? "Weather · Rijeka" : "Weather here")
+        } footer: {
+            if let model = model.localForecast?.windModels(from: .now, to: .now.addingTimeInterval(86400)).first?.model {
+                Text("Wind and gusts (kn), next 24 h · \(model.label)")
+            }
+        }
+        .task(id: model.location.location == nil) { model.refreshLocalWeather() }
     }
 }
 

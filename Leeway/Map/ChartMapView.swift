@@ -15,6 +15,7 @@ struct ChartMapView: UIViewRepresentable {
     var legHazards: [String?]
     var track: [CLLocationCoordinate2D]
     var samples: [PassageSample]
+    var legLabels: [LegAnnotationData]
     var inspected: CLLocationCoordinate2D?
     var isEditing: Bool
     var tracking: AppModel.UserTracking
@@ -57,6 +58,7 @@ struct ChartMapView: UIViewRepresentable {
         map.register(ConditionsView.self, forAnnotationViewWithReuseIdentifier: ConditionsView.reuseID)
         map.register(HarbourView.self, forAnnotationViewWithReuseIdentifier: HarbourView.reuseID)
         map.register(InspectView.self, forAnnotationViewWithReuseIdentifier: InspectView.reuseID)
+        map.register(LegLabelView.self, forAnnotationViewWithReuseIdentifier: LegLabelView.reuseID)
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         tap.delegate = context.coordinator
@@ -83,6 +85,7 @@ struct ChartMapView: UIViewRepresentable {
         c.syncPath(path, hazards: legHazards, on: map)
         c.syncTrack(track, on: map)
         c.syncSamples(samples, on: map)
+        c.syncLegLabels(legLabels, on: map)
         c.syncInspected(inspected, on: map)
         c.applyTracking(tracking, to: map)
         if c.lastFitRequest != fitRouteRequest {
@@ -98,15 +101,10 @@ struct ChartMapView: UIViewRepresentable {
         var lastFitRequest = 0
 
         private var currentBase: MapBase?
-        private let seamarks: MKTileOverlay = {
-            let overlay = MKTileOverlay(urlTemplate: "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png")
-            overlay.canReplaceMapContent = false
-            overlay.minimumZ = 6
-            overlay.maximumZ = 18
-            return overlay
-        }()
+        private var seamarkOverlay: SeamarkTileOverlay?
+        private var seamarkKey: String?
         private let graticule = GraticuleOverlay()
-        private var depthOverlays: [DepthTileOverlay] = []
+        private var chartOverlays: [ChartOverlay] = []
         private var depthKey: String?
         private var routeLines: [MKPolyline] = []
         /// Manual-mode legs that cross land or shallows (MapKit's polyline factories can't be subclassed).
@@ -142,16 +140,16 @@ struct ChartMapView: UIViewRepresentable {
             }
         }
 
-        /// Depth tiles and the lat/lon grid; rebuilt when the look or the safety depth changes.
+        /// The offline chart and the lat/lon grid; rebuilt when the look or the safety depth changes.
         func applyChart(to map: MKMapView) {
             let dark = map.traitCollection.userInterfaceStyle == .dark
-            let style = DepthTileOverlay.Style(paintLand: parent.base == .chart, dark: dark, safetyDepth: parent.safetyDepth)
+            let style = ChartStyle(paintLand: parent.base == .chart, dark: dark, safetyDepth: parent.safetyDepth, seamarks: parent.showSeamarks)
             let key = parent.showDepth ? "\(style)" : "off"
             if key != depthKey {
                 depthKey = key
-                map.removeOverlays(depthOverlays)
-                depthOverlays = parent.showDepth ? parent.regions.map { DepthTileOverlay(region: $0, style: style) } : []
-                for overlay in depthOverlays { map.insertOverlay(overlay, at: 0, level: .aboveRoads) }
+                map.removeOverlays(chartOverlays)
+                chartOverlays = parent.showDepth ? parent.regions.map { ChartOverlay(region: $0, style: style) } : []
+                for overlay in chartOverlays { map.insertOverlay(overlay, at: 0, level: .aboveRoads) }
             }
             let gridShown = map.overlays.contains { $0 === graticule }
             if parent.showGrid && !gridShown { map.addOverlay(graticule, level: .aboveRoads) }
@@ -162,10 +160,17 @@ struct ChartMapView: UIViewRepresentable {
             }
         }
 
+        /// OpenSeaMap symbols for areas without an offline chart (the chart draws its own seamarks).
         func applySeamarks(_ show: Bool, to map: MKMapView) {
-            let shown = map.overlays.contains { $0 === seamarks }
-            if show && !shown { map.addOverlay(seamarks, level: .aboveLabels) }
-            if !show && shown { map.removeOverlay(seamarks) }
+            let key = show ? (parent.showDepth ? "outside-charts" : "everywhere") : "off"
+            guard key != seamarkKey else { return }
+            seamarkKey = key
+            if let seamarkOverlay { map.removeOverlay(seamarkOverlay) }
+            seamarkOverlay = nil
+            guard show else { return }
+            let overlay = SeamarkTileOverlay(regions: parent.showDepth ? parent.regions : [])
+            map.addOverlay(overlay, level: .aboveLabels)
+            seamarkOverlay = overlay
         }
 
         func syncWaypoints(_ waypoints: [Waypoint], editing: Bool, on map: MKMapView) {
@@ -230,6 +235,15 @@ struct ChartMapView: UIViewRepresentable {
             drawnSampleTimes = key
             map.removeAnnotations(map.annotations.filter { $0 is ConditionsAnnotation })
             map.addAnnotations(samples.map(ConditionsAnnotation.init))
+        }
+
+        private var drawnLegLabels: [LegAnnotationData] = []
+
+        func syncLegLabels(_ labels: [LegAnnotationData], on map: MKMapView) {
+            guard labels != drawnLegLabels else { return }
+            drawnLegLabels = labels
+            map.removeAnnotations(map.annotations.filter { $0 is LegAnnotation })
+            map.addAnnotations(labels.map { LegAnnotation(text: $0.text, coordinate: $0.coordinate) })
         }
 
         func syncInspected(_ coordinate: CLLocationCoordinate2D?, on map: MKMapView) {
@@ -309,6 +323,9 @@ struct ChartMapView: UIViewRepresentable {
         // MARK: MKMapViewDelegate
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let chart = overlay as? ChartOverlay {
+                return ChartRenderer(chart: chart)
+            }
             if let tiles = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tiles)
             }
@@ -351,6 +368,10 @@ struct ChartMapView: UIViewRepresentable {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: HarbourView.reuseID, for: mark) as! HarbourView
                 view.configure(mark.seamark)
                 return view
+            case let leg as LegAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: LegLabelView.reuseID, for: leg) as! LegLabelView
+                view.configure(leg.text)
+                return view
             case is InspectAnnotation:
                 return mapView.dequeueReusableAnnotationView(withIdentifier: InspectView.reuseID, for: annotation)
             default:
@@ -390,7 +411,21 @@ struct ChartMapView: UIViewRepresentable {
             DispatchQueue.main.async { self.parent.onTrackingChange(tracking) }
         }
 
+        private var lastCamera = AppModel.MapCamera()
+        private var lastCameraUpdate = Date.distantPast
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            publishCamera(mapView, force: true)
+        }
+
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            publishCamera(mapView, force: false)
+        }
+
+        /// Scale bar and grid labels; throttled while the map moves so SwiftUI isn't re-rendered every frame.
+        private func publishCamera(_ mapView: MKMapView, force: Bool) {
+            guard force || Date().timeIntervalSince(lastCameraUpdate) > 0.12 else { return }
+            lastCameraUpdate = Date()
             let bounds = mapView.bounds
             guard bounds.width > 0 else { return }
             var camera = AppModel.MapCamera()
@@ -425,6 +460,9 @@ struct ChartMapView: UIViewRepresentable {
                     lat -= step
                 }
             }
+            let scaleChanged = abs(camera.metresPerPoint - lastCamera.metresPerPoint) > lastCamera.metresPerPoint * 0.02
+            guard scaleChanged || camera.longitudeLabels != lastCamera.longitudeLabels || camera.latitudeLabels != lastCamera.latitudeLabels else { return }
+            lastCamera = camera
             parent.onCameraChange(camera)
         }
     }
