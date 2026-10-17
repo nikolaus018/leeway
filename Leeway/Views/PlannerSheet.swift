@@ -65,7 +65,7 @@ private struct RouteHome: View {
                     model.startNewRoute()
                     close?()
                 } label: {
-                    Label("Plan a passage", systemImage: "point.topleft.down.to.point.bottomright.curvepath.fill")
+                    Text("Plan a passage")
                         .font(.headline)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
@@ -136,7 +136,7 @@ private struct RouteList: View {
                             Button {
                                 model.startNavigation()
                             } label: {
-                                Label("Start navigation", systemImage: "location.north.line.fill")
+                                Text("Start navigation")
                                     .font(.headline)
                                     .frame(maxWidth: .infinity, minHeight: 32)
                             }
