@@ -144,10 +144,21 @@ nonisolated final class ChartRegion: Sendable {
         cellNM = (lonStep * 60 * cos(midLat.radians), latStep * 60)
     }
 
-    /// All regions shipped in the app bundle's Charts folder.
-    static func bundled(in bundle: Bundle = .main) -> [ChartRegion] {
-        let metas = bundle.urls(forResourcesWithExtension: "json", subdirectory: "Charts") ?? []
-        return metas.compactMap { meta in
+    /// Chart packs downloaded from the data server.
+    static let downloadDirectory = URL.applicationSupportDirectory.appending(path: "Charts", directoryHint: .isDirectory)
+
+    /// Downloaded packs, plus the ones shipped in the app bundle that no download replaces.
+    static func all(bundle: Bundle = .main) -> [ChartRegion] {
+        let downloaded = ((try? FileManager.default.contentsOfDirectory(at: downloadDirectory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "json" }
+        let replaced = Set(downloaded.map { $0.deletingPathExtension().lastPathComponent })
+        let bundled = (bundle.urls(forResourcesWithExtension: "json", subdirectory: "Charts") ?? [])
+            .filter { !replaced.contains($0.deletingPathExtension().lastPathComponent) }
+        return load(downloaded + bundled)
+    }
+
+    private static func load(_ metas: [URL]) -> [ChartRegion] {
+        metas.compactMap { meta in
             let base = meta.deletingPathExtension()
             return try? ChartRegion(metadata: meta, depth: base.appendingPathExtension("depth"),
                                     land: base.appendingPathExtension("land"))

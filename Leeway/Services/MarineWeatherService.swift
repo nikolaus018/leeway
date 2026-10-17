@@ -52,6 +52,17 @@ nonisolated enum WindModel: Int, CaseIterable, Sendable {
         case .global: "global model"
         }
     }
+
+    /// The names the data server uses.
+    init?(serverName: String) {
+        switch serverName {
+        case "icon2I": self = .icon2I
+        case "iconD2": self = .iconD2
+        case "iconEU": self = .iconEU
+        case "global": self = .global
+        default: return nil
+        }
+    }
 }
 
 /// Hourly forecast for one point on the route.
@@ -67,6 +78,27 @@ struct ForecastSeries {
     var currentToward: [Double?]
     /// Which model supplied the wind for each hour.
     var windModel: [WindModel?] = []
+    // Extras from the data server, for the weather summary (empty when unavailable).
+    var airTemp: [Double?] = []
+    var seaTemp: [Double?] = []
+    var pressure: [Double?] = []
+    var wavePeriod: [Double?] = []
+    var precipitation: [Double?] = []
+
+    /// One of the extra series, interpolated at `date`.
+    func value(_ values: [Double?], at date: Date) -> Double? {
+        guard let first = times.first, times.count > 1, values.count == times.count else { return nil }
+        let step = times[1].timeIntervalSince(first)
+        let position = min(max(date.timeIntervalSince(first) / step, 0), Double(times.count - 1))
+        let i = min(Int(position), times.count - 2)
+        let t = position - Double(i)
+        switch (values[i], values[i + 1]) {
+        case let (a?, b?): return a + (b - a) * t
+        case let (a?, nil): return a
+        case let (nil, b?): return b
+        default: return nil
+        }
+    }
 
     func conditions(at date: Date) -> Conditions {
         guard let first = times.first, let last = times.last, times.count > 1 else { return .calm }
@@ -111,6 +143,8 @@ struct ForecastSeries {
 struct RouteForecast {
     var points: [ForecastSeries]
     var fetchedAt: Date
+    /// Where it came from, e.g. "seadata.ringtwo.win".
+    var source = ""
 
     var validUntil: Date { points.compactMap { $0.times.last }.min() ?? fetchedAt }
 
@@ -131,8 +165,8 @@ struct RouteForecast {
     }
 }
 
-/// Free, keyless forecasts from Open-Meteo: wind from the weather API, waves and
-/// currents (including tidal streams) from the marine API.
+/// Forecasts along a route: from the data server (wind from the finest model per hour, waves,
+/// currents including tidal streams, weather), or straight from Open-Meteo if the server can't be reached.
 struct MarineWeatherService {
     enum Failure: LocalizedError {
         case badResponse
@@ -146,6 +180,44 @@ struct MarineWeatherService {
             let d = total * Double(i) / Double(count - 1)
             return Geo.point(along: route, distance: d).map { ($0, d) }
         }
+        let server = Seadata.current
+        do {
+            return try await fromServer(server, samples)
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            var forecast = try await direct(samples)
+            forecast.source = "Open-Meteo direct (\(server.displayName) unreachable)"
+            return forecast
+        }
+    }
+
+    private func fromServer(_ server: Seadata, _ samples: [(CLLocationCoordinate2D, Double)]) async throws -> RouteForecast {
+        let response = try await server.forecast(at: samples.map { $0.0 })
+        guard response.points.count == samples.count else { throw Failure.badResponse }
+        let points = zip(samples, response.points).map { sample, p in
+            ForecastSeries(
+                coordinate: sample.0,
+                distanceAlong: sample.1,
+                times: p.times.map { Date(timeIntervalSince1970: $0) },
+                windSpeed: p.windSpeed,
+                windFrom: p.windFrom,
+                gust: p.gust,
+                waveHeight: p.waveHeight ?? [],
+                currentSpeed: p.currentSpeed ?? [],
+                currentToward: p.currentToward ?? [],
+                windModel: p.windModel.map { $0.flatMap(WindModel.init(serverName:)) },
+                airTemp: p.airTemp ?? [],
+                seaTemp: p.seaTemp ?? [],
+                pressure: p.pressure ?? [],
+                wavePeriod: p.wavePeriod ?? [],
+                precipitation: p.precipitation ?? []
+            )
+        }
+        return RouteForecast(points: points, fetchedAt: .now, source: server.displayName)
+    }
+
+    /// Open-Meteo without the data server: wind from the weather API, waves and currents from the marine API.
+    private func direct(_ samples: [(CLLocationCoordinate2D, Double)]) async throws -> RouteForecast {
         let lats = samples.map { String(format: "%.4f", $0.0.latitude) }.joined(separator: ",")
         let lons = samples.map { String(format: "%.4f", $0.0.longitude) }.joined(separator: ",")
 

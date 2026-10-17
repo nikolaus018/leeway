@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var detent = PresentationDetent.collapsed
 
     var body: some View {
@@ -11,6 +12,7 @@ struct ContentView: View {
             showDepth: model.showDepth,
             showGrid: model.showGrid,
             regions: model.regions,
+            server: Seadata(model.serverURL) ?? Seadata.current,
             safetyDepth: model.boat.safetyDepth,
             waypoints: model.route.waypoints,
             path: model.path,
@@ -18,6 +20,8 @@ struct ContentView: View {
             track: model.location.track,
             samples: model.plan?.samples ?? [],
             legLabels: legLabels,
+            windArrows: windArrows,
+            vessels: vesselMarkers,
             underway: underwayMap,
             inspected: model.inspection?.coordinate,
             isEditing: model.isEditing,
@@ -26,6 +30,8 @@ struct ContentView: View {
             onAddWaypoint: { model.addWaypoint(at: $0) },
             onMoveWaypoint: { model.moveWaypoint($0, to: $1) },
             onInspect: { model.inspect($0, seamark: $1) },
+            onSelectVessel: { model.inspect(vessel: $0) },
+            onRegionChange: { model.mapMoved(to: $0) },
             onTrackingChange: { model.tracking = $0 },
             onCameraChange: { model.camera = $0 }
         )
@@ -59,10 +65,20 @@ struct ContentView: View {
                         MOBButton()
                     }
                 }
-                ScaleBar(metresPerPoint: model.camera.metresPerPoint)
+                HStack(alignment: .top, spacing: 8) {
+                    ScaleBar(metresPerPoint: model.camera.metresPerPoint)
+                    if model.showWind { WindTimeBar() }
+                    if model.showAIS { AISStatus() }
+                }
                 if let inspection = model.inspection, !model.isEditing {
-                    InspectorCard(inspection: inspection)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                    Group {
+                        if let vessel = inspection.vessel {
+                            VesselCard(vessel: vessel)
+                        } else {
+                            InspectorCard(inspection: inspection)
+                        }
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 12)
@@ -87,6 +103,7 @@ struct ContentView: View {
             if navigating { detent = .collapsed }
         }
         .task { model.location.start() }
+        .onChange(of: scenePhase, initial: true) { _, phase in model.isActive = phase == .active }
     }
 }
 
@@ -111,6 +128,26 @@ private extension ContentView {
             state.swing = underway.swing.map(UnderwayMapState.Point.init)
         }
         return state
+    }
+
+    /// Wind at the chosen hour on the visible grid.
+    var windArrows: [WindArrow] {
+        guard model.showWind, let grid = model.windGrid, let hour = grid.hour(for: model.windTime) else { return [] }
+        return grid.points.compactMap { p in
+            guard hour < p.windSpeed.count, hour < p.windFrom.count,
+                  let speed = p.windSpeed[hour], let from = p.windFrom[hour] else { return nil }
+            return WindArrow(latitude: p.lat, longitude: p.lon, speed: speed, from: from)
+        }
+    }
+
+    /// Ships, the ones about to pass close flagged.
+    var vesselMarkers: [VesselMarker] {
+        guard model.showAIS else { return [] }
+        let moving = (model.location.sog ?? 0) >= 0.5
+        return model.vessels.map { vessel in
+            let danger = (moving || vessel.isUnderway) && (model.approach(to: vessel)?.isDangerous ?? false)
+            return VesselMarker(vessel: vessel, danger: danger)
+        }
     }
 
     /// "128° 4.2 NM" at the middle of each leg worth labelling.
@@ -150,6 +187,14 @@ private struct MapControls: View {
                     }
                     Toggle(isOn: $model.showGrid) {
                         Label("Lat/Lon grid", systemImage: "grid")
+                    }
+                }
+                Section("Live") {
+                    Toggle(isOn: $model.showWind) {
+                        Label("Wind forecast", systemImage: "wind")
+                    }
+                    Toggle(isOn: $model.showAIS) {
+                        Label("Ships (AIS)", systemImage: "ferry")
                     }
                 }
             } label: {
@@ -204,5 +249,79 @@ private struct EditingBanner: View {
         .padding(.trailing, 6)
         .padding(.vertical, 6)
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
+    }
+}
+
+/// Which forecast hour the wind arrows show; steps by 3 h, tap the time to go back to now.
+private struct WindTimeBar: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Button("Earlier", systemImage: "chevron.left") { model.stepWind(hours: -3) }
+                .disabled(model.windGrid?.start.map { model.windTime <= $0 } ?? true)
+            Button {
+                model.windTime = .now
+            } label: {
+                VStack(spacing: 0) {
+                    Text(timeText)
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                    Text(statusText)
+                        .font(.caption2)
+                        .foregroundStyle(statusIsError ? Color.orange : Color.secondary)
+                        .lineLimit(1)
+                }
+                .frame(minWidth: 84)
+            }
+            .tint(.primary)
+            Button("Later", systemImage: "chevron.right") { model.stepWind(hours: 3) }
+                .disabled(model.windGrid?.end.map { model.windTime >= $0 } ?? true)
+        }
+        .labelStyle(.iconOnly)
+        .font(.footnote.weight(.semibold))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
+    }
+
+    private var timeText: String {
+        abs(model.windTime.timeIntervalSinceNow) < 1800 ? "Wind now"
+            : model.windTime.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    private var statusText: String {
+        switch model.windState {
+        case .loading: "Loading…"
+        case .failed: "Unavailable"
+        default: "kn · tap for now"
+        }
+    }
+
+    private var statusIsError: Bool {
+        if case .failed = model.windState { return true }
+        return false
+    }
+}
+
+/// Ship count, or why there are none.
+private struct AISStatus: View {
+    @Environment(AppModel.self) private var model
+
+    private var text: String {
+        switch model.aisState {
+        case .zoomIn: "Zoom in for ships"
+        case .failed(let message): message
+        default: "\(model.vessels.count) ships"
+        }
+    }
+
+    var body: some View {
+        Label(text, systemImage: "ferry")
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: 200, alignment: .leading)
+            .glassEffect(.regular, in: .rect(cornerRadius: 12))
     }
 }

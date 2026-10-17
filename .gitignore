@@ -1,7 +1,11 @@
 build/
-*.xcodeproj/
+# Leeway.xcodeproj is generated from project.yml and committed by .github/workflows/ios.yml.
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 .DS_Store
 .venv/
 tools/*-preview.png
 tools/.overpass-cache/
 __pycache__/
+server/target/
+server/cache/

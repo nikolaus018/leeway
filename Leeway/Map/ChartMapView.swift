@@ -9,6 +9,7 @@ struct ChartMapView: UIViewRepresentable {
     var showDepth: Bool
     var showGrid: Bool
     var regions: [ChartRegion]
+    var server: Seadata
     var safetyDepth: Double
     var waypoints: [Waypoint]
     var path: [CLLocationCoordinate2D]
@@ -16,6 +17,8 @@ struct ChartMapView: UIViewRepresentable {
     var track: [CLLocationCoordinate2D]
     var samples: [PassageSample]
     var legLabels: [LegAnnotationData]
+    var windArrows: [WindArrow]
+    var vessels: [VesselMarker]
     var underway: UnderwayMapState
     var inspected: CLLocationCoordinate2D?
     var isEditing: Bool
@@ -24,6 +27,8 @@ struct ChartMapView: UIViewRepresentable {
     var onAddWaypoint: (CLLocationCoordinate2D) -> Void
     var onMoveWaypoint: (Waypoint.ID, CLLocationCoordinate2D) -> Void
     var onInspect: (CLLocationCoordinate2D, Seamark?) -> Void
+    var onSelectVessel: (Vessel) -> Void
+    var onRegionChange: (GeoBox) -> Void
     var onTrackingChange: (AppModel.UserTracking) -> Void
     var onCameraChange: (AppModel.MapCamera) -> Void
 
@@ -61,6 +66,8 @@ struct ChartMapView: UIViewRepresentable {
         map.register(InspectView.self, forAnnotationViewWithReuseIdentifier: InspectView.reuseID)
         map.register(LegLabelView.self, forAnnotationViewWithReuseIdentifier: LegLabelView.reuseID)
         map.register(BadgeView.self, forAnnotationViewWithReuseIdentifier: BadgeView.reuseID)
+        map.register(WindArrowView.self, forAnnotationViewWithReuseIdentifier: WindArrowView.reuseID)
+        map.register(VesselView.self, forAnnotationViewWithReuseIdentifier: VesselView.reuseID)
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         tap.delegate = context.coordinator
@@ -88,6 +95,8 @@ struct ChartMapView: UIViewRepresentable {
         c.syncTrack(track, on: map)
         c.syncSamples(samples, on: map)
         c.syncLegLabels(legLabels, on: map)
+        c.syncWind(windArrows, on: map)
+        c.syncVessels(vessels, on: map)
         c.syncUnderway(underway, on: map)
         c.syncInspected(inspected, on: map)
         c.applyTracking(tracking, to: map)
@@ -122,11 +131,11 @@ struct ChartMapView: UIViewRepresentable {
         private var inspectAnnotation: InspectAnnotation?
         var harbours: [SeamarkAnnotation] = []
         private var harboursShown = false
-        private var loadedRegions: [String] = []
+        private var loadedRegions: [ObjectIdentifier] = []
 
-        /// Charts arrive after launch; rebuild what depends on them.
+        /// Charts arrive after launch (and again after a download); rebuild what depends on them.
         func syncRegions(_ regions: [ChartRegion], on map: MKMapView) {
-            let ids = regions.map(\.id)
+            let ids = regions.map { ObjectIdentifier($0) }
             guard ids != loadedRegions else { return }
             loadedRegions = ids
             if harboursShown { map.removeAnnotations(harbours) }
@@ -174,13 +183,13 @@ struct ChartMapView: UIViewRepresentable {
 
         /// OpenSeaMap symbols for areas without an offline chart (the chart draws its own seamarks).
         func applySeamarks(_ show: Bool, to map: MKMapView) {
-            let key = show ? (parent.showDepth ? "outside-charts" : "everywhere") : "off"
+            let key = show ? (parent.showDepth ? "outside-charts" : "everywhere") + parent.server.base.absoluteString : "off"
             guard key != seamarkKey else { return }
             seamarkKey = key
             if let seamarkOverlay { map.removeOverlay(seamarkOverlay) }
             seamarkOverlay = nil
             guard show else { return }
-            let overlay = SeamarkTileOverlay(regions: parent.showDepth ? parent.regions : [])
+            let overlay = SeamarkTileOverlay(regions: parent.showDepth ? parent.regions : [], server: parent.server)
             map.addOverlay(overlay, level: .aboveLabels)
             seamarkOverlay = overlay
         }
@@ -250,6 +259,43 @@ struct ChartMapView: UIViewRepresentable {
         }
 
         private var drawnLegLabels: [LegAnnotationData] = []
+
+        // MARK: Live layers
+
+        private var drawnWind: [WindArrow] = []
+
+        func syncWind(_ arrows: [WindArrow], on map: MKMapView) {
+            guard arrows != drawnWind else { return }
+            drawnWind = arrows
+            map.removeAnnotations(map.annotations.filter { $0 is WindArrowAnnotation })
+            map.addAnnotations(arrows.map(WindArrowAnnotation.init))
+        }
+
+        private var vesselAnnotations: [Int: VesselAnnotation] = [:]
+
+        /// Ships move every few seconds: update pins in place rather than replacing them.
+        func syncVessels(_ markers: [VesselMarker], on map: MKMapView) {
+            let wanted = Dictionary(markers.map { ($0.vessel.mmsi, $0) }, uniquingKeysWith: { a, _ in a })
+            let gone = vesselAnnotations.filter { wanted[$0.key] == nil }
+            if !gone.isEmpty {
+                map.removeAnnotations(Array(gone.values))
+                gone.keys.forEach { vesselAnnotations[$0] = nil }
+            }
+            var added: [VesselAnnotation] = []
+            for (mmsi, marker) in wanted {
+                if let annotation = vesselAnnotations[mmsi] {
+                    guard annotation.marker != marker else { continue }
+                    annotation.marker = marker
+                    annotation.coordinate = marker.vessel.coordinate
+                    (map.view(for: annotation) as? VesselView)?.configure(marker)
+                } else {
+                    let annotation = VesselAnnotation(marker)
+                    vesselAnnotations[mmsi] = annotation
+                    added.append(annotation)
+                }
+            }
+            if !added.isEmpty { map.addAnnotations(added) }
+        }
 
         // MARK: Underway
 
@@ -481,6 +527,14 @@ struct ChartMapView: UIViewRepresentable {
                 return view
             case is InspectAnnotation:
                 return mapView.dequeueReusableAnnotationView(withIdentifier: InspectView.reuseID, for: annotation)
+            case let wind as WindArrowAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: WindArrowView.reuseID, for: wind) as! WindArrowView
+                view.configure(wind.arrow)
+                return view
+            case let vessel as VesselAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: VesselView.reuseID, for: vessel) as! VesselView
+                view.configure(vessel.marker)
+                return view
             default:
                 return nil
             }
@@ -503,6 +557,9 @@ struct ChartMapView: UIViewRepresentable {
             mapView.deselectAnnotation(annotation, animated: false)
             if let mark = annotation as? SeamarkAnnotation, !parent.isEditing {
                 parent.onInspect(mark.coordinate, mark.seamark)
+            }
+            if let vessel = annotation as? VesselAnnotation, !parent.isEditing {
+                parent.onSelectVessel(vessel.marker.vessel)
             }
         }
 
@@ -536,6 +593,14 @@ struct ChartMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             publishCamera(mapView, force: true)
+            let region = mapView.region
+            guard region.span.longitudeDelta > 0 else { return }
+            let box = GeoBox(west: region.center.longitude - region.span.longitudeDelta / 2,
+                             south: region.center.latitude - region.span.latitudeDelta / 2,
+                             east: region.center.longitude + region.span.longitudeDelta / 2,
+                             north: region.center.latitude + region.span.latitudeDelta / 2)
+            // Layer fetches are model state; don't change it in the middle of a view update.
+            DispatchQueue.main.async { self.parent.onRegionChange(box) }
         }
 
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
