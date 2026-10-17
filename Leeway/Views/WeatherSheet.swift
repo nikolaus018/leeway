@@ -115,14 +115,20 @@ struct WeatherHereSection: View {
 /// Official warnings for the area, marine ones first.
 private struct WarningsSection: View {
     @Environment(AppModel.self) private var model
+    /// Which warnings are open, by `rowKey`.
+    @State private var open: Set<String> = []
 
     var body: some View {
+        // Marine first, otherwise in the server's order (a plain sort isn't guaranteed stable).
         let current = model.warnings.filter { ($0.expiresDate ?? .distantFuture) > .now }
-            .sorted { $0.isMarine && !$1.isMarine }
-        if !current.isEmpty {
+        let ordered = current.filter(\.isMarine) + current.filter { !$0.isMarine }
+        if !ordered.isEmpty {
             Section {
-                ForEach(current.prefix(6)) { warning in
-                    DisclosureGroup {
+                ForEach(ordered.prefix(6), id: \.rowKey) { warning in
+                    DisclosureGroup(isExpanded: Binding(
+                        get: { open.contains(warning.rowKey) },
+                        set: { if $0 { open.insert(warning.rowKey) } else { open.remove(warning.rowKey) } }
+                    )) {
                         if let description = warning.description { Text(description).font(.footnote) }
                         if let instruction = warning.instruction {
                             Text(instruction).font(.caption).foregroundStyle(.secondary)
@@ -155,6 +161,9 @@ private struct WarningsSection: View {
 }
 
 extension WeatherWarning {
+    /// Unique per row: the feed's identifier alone can repeat across areas.
+    var rowKey: String { "\(id)|\(areaName)|\(event)|\(onset)" }
+
     var colour: Color {
         switch level ?? "" {
         case "red": .red
