@@ -229,7 +229,7 @@ def seamark_points(meta):
 
 
 def name_points(meta):
-    zoom = {"strait": 9, "bay": 10, "island": 10, "cape": 11, "islet": 12}
+    zoom = {"strait": 9, "island": 10, "bay": 12, "cape": 12, "islet": 13}
     return [feature({"type": "Point", "coordinates": [p["lo"], p["la"]]}, {"t": p["t"], "n": p["n"]}, zoom.get(p["t"], 11))
             for p in meta.get("names", [])]
 

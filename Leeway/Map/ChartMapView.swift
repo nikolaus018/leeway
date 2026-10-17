@@ -102,7 +102,9 @@ struct ChartMapView: UIViewRepresentable {
         }
         if c.lastMeasureRequest != measureAddRequest {
             c.lastMeasureRequest = measureAddRequest
-            onMeasure(map.centerCoordinate)
+            // Not during the view update: the model changes in response.
+            let centre = map.centerCoordinate
+            DispatchQueue.main.async { onMeasure(centre) }
         }
         if c.lastFitRequest != fitRouteRequest {
             c.lastFitRequest = fitRouteRequest
