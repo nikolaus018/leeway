@@ -453,6 +453,10 @@ PROTECTED_NOTE = {
 }
 
 
+# Parks whose zoning the national dataset doesn't hold (the park authorities do): only the outline is known.
+NO_ZONE_DATA = {"KORNATI", "TELAŠĆICA"}
+
+
 def title_name(text):
     return title_case(text) if text.isupper() else text
 
@@ -465,7 +469,10 @@ def protected_features():
     areas, zones = DATA / "protected_areas.json", DATA / "protected_zones.json"
     if areas.exists():
         for name, category, polygons in json.loads(areas.read_text()):
-            props = {"kind": "protected", "n": title_name(name), "c": PROTECTED_NOTE.get(category, category)}
+            note = PROTECTED_NOTE.get(category, category)
+            if name in NO_ZONE_DATA:
+                note += "; its strict zones are not drawn here: get the park's map"
+            props = {"kind": "protected", "n": title_name(name), "c": note}
             out.append(feature({"type": "MultiPolygon", "coordinates": polygons}, props, 7))
     if zones.exists():
         for park, zone, level, polygons in json.loads(zones.read_text()):
