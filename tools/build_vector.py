@@ -36,7 +36,7 @@ from pathlib import Path
 
 import contourpy
 import numpy as np
-from shapely.geometry import shape
+from shapely.geometry import Point, shape
 from scipy import ndimage
 
 CHARTS = Path(__file__).resolve().parent.parent / "Leeway" / "Charts"
@@ -182,7 +182,12 @@ def symbol(mark):
     if t == "rock":
         level = mark.get("wl")
         return f"rock-{level if level in ('dry', 'awash', 'covers') else 'submerged'}"
-    if t in ("wreck", "obstruction", "mooring", "anchorage", "landmark"):
+    if t == "wreck":
+        # Only a wreck charted as non-dangerous loses the danger ring: when unsure, assume it is.
+        return "wreck-safe" if category == "non-dangerous" else "wreck"
+    if t == "obstruction":
+        return "boom" if category == "boom" else "obstruction"
+    if t in ("mooring", "anchorage", "landmark"):
         return t
     if t in ("harbour", "small_craft_facility"):
         return "marina" if category == "marina" or t == "small_craft_facility" else "harbour"
@@ -280,6 +285,20 @@ def hhi_layers():
         if kind and f.get("geometry"):
             props = {"kind": kind, "n": p.get("Naziv", "").strip() or p["Vrsta"]}
             areas.append(feature({**f["geometry"], "coordinates": round_coords(f["geometry"]["coordinates"])}, props, 8))
+    # Direction-of-traffic arrows along each lane (the polygon's ORIENT attribute is the flow, true).
+    for f in hhi_features("tss"):
+        p = f["properties"]
+        if p.get("Vrsta") != "Traffic separation scheme lane part" or not p.get("orientat") or not f.get("geometry"):
+            continue
+        poly = shape(f["geometry"]).buffer(0)
+        centre, angle = poly.centroid, math.radians(p["orientat"])
+        step = 6 / 60  # degrees of latitude: about 6 NM between arrows
+        for k in range(-60, 61):
+            x = centre.x + k * step * math.sin(angle) / math.cos(math.radians(centre.y))
+            y = centre.y + k * step * math.cos(angle)
+            if poly.contains(Point(x, y)):
+                areas.append(feature({"type": "Point", "coordinates": [r6(x), r6(y)]},
+                                     {"kind": "tss_arrow", "rot": float(p["orientat"])}, 8))
     for group, kind, minzoom in (("cable_power", "cable", 10), ("cable_telecom", "cable", 10), ("pipe_gas", "pipeline", 10),
                                  ("pipe_oil", "pipeline", 10), ("pipe_water", "pipeline", 11), ("pipe_outfall", "pipeline", 12)):
         for f in hhi_features(group):

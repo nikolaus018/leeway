@@ -351,6 +351,12 @@ struct ChartStyle: Equatable {
                    filter: ["all", ["==", ["geometry-type"], "LineString"], ["in", ["get", "kind"], ["literal", ["cable", "pipeline"]]]],
                    layout: ["text-field": areaLabel, "text-font": ["Noto Sans Italic"], "text-size": 10, "symbol-placement": "line"],
                    paint: ["text-color": c.magenta, "text-halo-color": c.halo, "text-halo-width": 1]),
+            // Direction of traffic in the separation lanes (S-52's large open arrows).
+            symbol("\(id)-tss-arrow", source: source, sourceLayer: "area", minzoom: 8,
+                   filter: ["==", ["get", "kind"], "tss_arrow"],
+                   layout: ["icon-image": "tss-arrow", "icon-rotate": ["get", "rot"], "icon-rotation-alignment": "map",
+                            "icon-allow-overlap": true, "icon-ignore-placement": true,
+                            "icon-size": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 13, 1.0]]),
             // Offshore platforms (official list).
             layer("\(id)-platform", "circle", source: source, sourceLayer: "area", minzoom: 9,
                   filter: ["==", ["get", "kind"], "platform"],

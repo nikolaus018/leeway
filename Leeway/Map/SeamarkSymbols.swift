@@ -11,6 +11,7 @@ enum SeamarkSymbols {
         let dark = palette == .night
         switch name {
         case "wind-arrow": return windArrow()
+        case "tss-arrow": return trafficArrow(dark: dark)
         case "vessel-moving": return vessel(moving: true)
         case "vessel-stopped": return vessel(moving: false)
         case "inspect": return inspect()
@@ -115,14 +116,18 @@ enum SeamarkSymbols {
                 }
             }
             dangerRing()
-        case "wreck":
+        case "wreck", "wreck-safe":
             let p = UIBezierPath()
             p.move(to: CGPoint(x: c.x - 5 * k, y: c.y)); p.addLine(to: CGPoint(x: c.x + 5 * k, y: c.y))
             for dx in [-2.5, 0, 2.5] {
                 p.move(to: CGPoint(x: c.x + dx * k, y: c.y - 2.5 * k)); p.addLine(to: CGPoint(x: c.x + dx * k, y: c.y + 2.5 * k))
             }
             stroke(p, fill: nil, width: 1.1)
-            dangerRing()
+            // S-52: only a dangerous wreck gets the dotted danger ring.
+            if name == "wreck" { dangerRing() }
+        case "boom":
+            // A floating barrier (swimming area, marina): a small open square, no danger ring.
+            stroke(UIBezierPath(rect: CGRect(x: c.x - 3 * k, y: c.y - 3 * k, width: 6 * k, height: 6 * k)), fill: nil, width: 1)
         case "obstruction":
             dangerRing(radius: 5)
         case "buoy-port", "buoy-starboard", "beacon-port", "beacon-starboard":
@@ -251,6 +256,26 @@ enum SeamarkSymbols {
             p.fill()
         }
         return image.withRenderingMode(.alwaysTemplate)
+    }
+
+    /// The large open arrow of a traffic separation lane, pointing north (the style rotates it).
+    private static func trafficArrow(dark: Bool) -> UIImage {
+        let magenta = dark ? UIColor(red: 0.95, green: 0.45, blue: 0.9, alpha: 1) : UIColor(red: 0.75, green: 0.1, blue: 0.6, alpha: 1)
+        return UIGraphicsImageRenderer(size: CGSize(width: 24, height: 44)).image { _ in
+            let p = UIBezierPath()
+            p.move(to: CGPoint(x: 12, y: 2))
+            p.addLine(to: CGPoint(x: 22, y: 18))
+            p.addLine(to: CGPoint(x: 15, y: 18))
+            p.addLine(to: CGPoint(x: 15, y: 42))
+            p.addLine(to: CGPoint(x: 9, y: 42))
+            p.addLine(to: CGPoint(x: 9, y: 18))
+            p.addLine(to: CGPoint(x: 2, y: 18))
+            p.close()
+            magenta.setStroke()
+            p.lineWidth = 1.6
+            p.lineJoinStyle = .round
+            p.stroke()
+        }
     }
 
     private static func vessel(moving: Bool) -> UIImage {
