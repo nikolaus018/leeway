@@ -259,12 +259,17 @@ struct ChartStyle: Equatable {
     }
 
     /// OpenSeaMap tiles through the data server, skipping the packs (they draw their own seamarks).
+    /// The skipped boxes are the packs' areas plus a margin: the server only skips tiles lying wholly inside a
+    /// box, and the packs also draw official data (traffic separation, platforms, cables) a little beyond their
+    /// edge, where the raster tiles would show the same things a second time.
     private var seamarkTemplate: String {
-        // `v` changes when the tiles' meaning changes (v2: empty tiles are transparent images).
-        var template = server.appending(path: "v1/tiles/seamark").absoluteString + "/{z}/{x}/{y}.png?v=2"
+        // `v` changes when the tiles' meaning changes (v2: empty tiles are transparent images; v3: margin).
+        var template = server.appending(path: "v1/tiles/seamark").absoluteString + "/{z}/{x}/{y}.png?v=3"
         if !packs.isEmpty {
-            template += "&skip=" + packs.map { String(format: "%.4f,%.4f,%.4f,%.4f", $0.west, $0.south, $0.east, $0.north) }
-                .joined(separator: ";")
+            let margin = 0.7
+            template += "&skip=" + packs.map {
+                String(format: "%.4f,%.4f,%.4f,%.4f", $0.west - margin, $0.south - margin, $0.east + margin, $0.north + margin)
+            }.joined(separator: ";")
         }
         return template
     }
