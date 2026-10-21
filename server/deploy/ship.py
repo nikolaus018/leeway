@@ -198,6 +198,9 @@ def local_files():
                 files[str(path.relative_to(SERVER))] = path
     for path in sorted((REPO / "Leeway" / "Charts").iterdir()):
         if path.is_file() and not path.name.startswith("."):
+            if path.suffix == ".json" and json.loads(path.read_text()).get("enc"):
+                sys.exit(f"{path.name} was built with licensed ENC data (build_vector.py --aquamap): it can't be "
+                         "published. Rebuild it without --aquamap first.")
             files[f"charts/{path.name}"] = path
     return files
 

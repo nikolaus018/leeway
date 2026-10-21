@@ -8,6 +8,9 @@ sectors, restricted areas, traffic separation, cables, pipelines, seabed) from l
 
     .venv/bin/python tools/build_vector.py adriatic --osm croatia.osm.pbf,slovenia.osm.pbf
 
+--aquamap adds official ENC depth, soundings, lights, sectors and dangers (tools/aquamap.py). That data is licensed:
+such a pack is for your own device only; it is marked "enc" and server/deploy/ship.py won't upload it.
+
 Needs tippecanoe (brew install tippecanoe) and numpy, shapely, contourpy, scipy (+ osmium for --osm).
 build_region.py runs this at the end. Layers (attribute names are what the app's style reads):
 
@@ -133,8 +136,9 @@ def depth_layers(meta, code):
     return areas, contours
 
 
-def soundings(meta, code):
-    """Spot depths on a fixed lattice that thins out as you zoom out, like a paper chart."""
+def soundings(meta, code, skip=None):
+    """Spot depths on a fixed lattice that thins out as you zoom out, like a paper chart. No figures in the cells
+    `skip` marks (where measured soundings are drawn instead)."""
     west, north = meta["west"], meta["north"]
     lat_step, lon_step = meta["latStep"], meta["lonStep"]
     rows, cols = code.shape
@@ -142,7 +146,7 @@ def soundings(meta, code):
     # a skipper reads depths.
     near_land = ndimage.binary_dilation(code == LAND, iterations=1)
     out = []
-    taken = np.zeros_like(code, dtype=bool)
+    taken = np.zeros_like(code, dtype=bool) if skip is None else skip.copy()
     # (spacing in grid cells, first zoom, deepest metres shown). The grid is about 67 m a cell, finer
     # than the source data (EMODnet, about 115 m), so 2 cells is as dense as the data can justify.
     # Sparse when zoomed out, so the chart stays readable; the dense lattice only at the closest zoom and
@@ -550,7 +554,9 @@ def sector_features(lon, lat, tags, light):
     return out
 
 
-def osm_details(paths, west, south, east, north):
+def osm_details(paths, west, south, east, north, skip_lights=frozenset()):
+    """Light sectors and seamark areas from OSM extracts. Sectors of lights in `skip_lights` ((lat, lon) rounded to
+    3 decimals) are left out: the ENC draws those."""
     import osmium
     from shapely import wkb
 
@@ -580,6 +586,10 @@ def osm_details(paths, west, south, east, north):
             if "seamark:light:1:sector_start" not in t and "seamark:light:sector_start" not in t:
                 return
             if not n.location.valid() or not inside(n.location.lon, n.location.lat):
+                return
+            la, lo = round(n.location.lat, 3), round(n.location.lon, 3)
+            if any((round(la + dy, 3), round(lo + dx, 3)) in skip_lights
+                   for dy in (-0.001, 0, 0.001) for dx in (-0.001, 0, 0.001)):
                 return
             tags = dict(t)
             if "seamark:light:sector_start" in tags:  # single-sector lights without the :1: index
@@ -630,25 +640,60 @@ def osm_details(paths, west, south, east, north):
     return sectors, areas
 
 
-def build(pack_id, osm_paths=()):
+def restore_open_data(pack_id, enc):
+    """A pack built with --aquamap has ENC data in its grid and seamarks. The open-data originals are kept in
+    tools/.aquamap-cache/orig: every build starts from them, so builds don't pile up and a plain build is clean."""
+    orig = Path(__file__).resolve().parent / ".aquamap-cache" / "orig"
+    names = [f"{pack_id}.json", f"{pack_id}.depth"]
+    current = json.loads((CHARTS / names[0]).read_text())
+    if current.get("enc") and all((orig / n).exists() for n in names):
+        for n in names:
+            shutil.copyfile(orig / n, CHARTS / n)
+    elif current.get("enc"):
+        sys.exit(f"{pack_id} has ENC data but no open-data originals in {orig}: rebuild it with build_region.py")
+    elif enc:
+        orig.mkdir(parents=True, exist_ok=True)
+        for n in names:
+            shutil.copyfile(CHARTS / n, orig / n)
+
+
+def build(pack_id, osm_paths=(), enc=False):
     if not shutil.which("tippecanoe"):
         sys.exit("tippecanoe not found: brew install tippecanoe")
+    restore_open_data(pack_id, enc)
     meta, code, rings = load_pack(pack_id)
     print(f"  {merge_plovput(meta)} official aids to navigation added", flush=True)
     print(f"Vector chart for {meta['name']}: grid {code.shape[0]}×{code.shape[1]}", flush=True)
-    areas, contours = depth_layers(meta, code)
+    if enc:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import aquamap
+        print("ENC detail from Aqua Map (personal use only)…", flush=True)
+        code, enc_covered, enc_areas, enc_contours, enc_soundings, enc_sectors, enc_sector_lights, summary = aquamap.enrich(meta, code)
+        print(f"  {summary}", flush=True)
+        # Routing and the depth under the boat read the same grid the chart is drawn from.
+        packer = zlib.compressobj(9, zlib.DEFLATED, -15)
+        (CHARTS / f"{pack_id}.depth").write_bytes(packer.compress(code.tobytes()) + packer.flush())
+        meta["enc"] = True
+        areas, contours = enc_areas, enc_contours
+    else:
+        meta.pop("enc", None)
+        areas, contours = depth_layers(meta, code)
     print(f"  {len(areas)} depth areas, {len(contours)} contour sets", flush=True)
     layers = {
         "land": land_polygons(rings),
         "depare": areas,
         "depcnt": contours,
-        "soundg": soundings(meta, code),
+        "soundg": soundings(meta, code, skip=enc_covered) + enc_soundings if enc else soundings(meta, code),
         "seamark": seamark_points(meta),
         "names": name_points(meta),
         "bridge": bridge_lines(meta),
     }
+    if enc:
+        layers["lightsector"] = enc_sectors
     if osm_paths:
-        layers["lightsector"], layers["area"] = osm_details(osm_paths, meta["west"], meta["south"], meta["east"], meta["north"])
+        osm_sectors, layers["area"] = osm_details(osm_paths, meta["west"], meta["south"], meta["east"], meta["north"],
+                                                  skip_lights=enc_sector_lights if enc else set())
+        layers["lightsector"] = layers.get("lightsector", []) + osm_sectors
     layers["area"] = layers.get("area", []) + protected_features()
     hhi_areas, hhi_names, hhi_coast = hhi_layers()
     if hhi_areas:
@@ -663,7 +708,8 @@ def build(pack_id, osm_paths=()):
         args = ["tippecanoe", "-o", str(out), "--force", f"-Z{MIN_ZOOM}", f"-z{MAX_ZOOM}",
                 "--name", meta["name"], "--attribution", meta.get("attribution", ""),
                 "--detect-shared-borders", "--no-feature-limit", "--no-tile-size-limit",
-                "--simplification=4", "--buffer=8", "--quiet"]
+                "--no-tiny-polygon-reduction", "--simplify-only-low-zooms",
+                "--simplification=2", "--buffer=8", "--quiet"]
         for name, features in layers.items():
             path = Path(tmp) / f"{name}.geojson"
             with path.open("w") as f:
@@ -685,6 +731,9 @@ if __name__ == "__main__":
         i = args.index("--osm")
         paths = args[i + 1].split(",")
         del args[i:i + 2]
+    enc = "--aquamap" in args
+    if enc:
+        args.remove("--aquamap")
     if len(args) != 1:
         sys.exit(__doc__)
-    build(args[0], paths)
+    build(args[0], paths, enc)

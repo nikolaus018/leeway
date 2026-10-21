@@ -11,3 +11,4 @@ server/target/
 server/cache/
 tools/.osm-cache/
 tools/.hhi-cache/
+tools/.aquamap-cache/

@@ -46,6 +46,7 @@ targets:
       path: Leeway/Info.plist
       properties:
         CFBundleDisplayName: Leeway
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true

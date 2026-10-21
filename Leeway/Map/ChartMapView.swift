@@ -558,7 +558,9 @@ extension Seamark {
     /// A seamark from a vector chart feature (the pack's `seamark` layer).
     init?(feature: MLNFeature) {
         guard let type = feature.attribute(forKey: "t") as? String else { return nil }
-        func text(_ key: String) -> String? { feature.attribute(forKey: key) as? String }
+        func text(_ key: String) -> String? {
+            feature.attribute(forKey: key) as? String ?? (feature.attribute(forKey: key) as? NSNumber)?.stringValue
+        }
         self.init(type: type, name: text("n"), latitude: feature.coordinate.latitude, longitude: feature.coordinate.longitude,
                   category: text("c"), colour: text("col"), light: text("l"), depth: text("d"), waterLevel: text("wl"))
     }

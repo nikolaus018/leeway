@@ -505,6 +505,12 @@ final class AppModel {
     }
 
     private func updatePalette() {
+        #if DEBUG
+        if let spec = Self.debugArgument("debugPalette"), let p = ChartPalette(rawValue: spec) {
+            if palette != p { palette = p }
+            return
+        }
+        #endif
         let resolved: ChartPalette = switch paletteMode {
         case .auto: Sun.palette(at: location.location?.coordinate ?? camera.center)
         case .day: .day

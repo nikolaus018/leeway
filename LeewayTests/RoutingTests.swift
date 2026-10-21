@@ -44,9 +44,9 @@ private func steadyWind(from direction: Double, knots: Double) -> WindField {
         let grid = RoutingGrid(rules: rules, around: points)
         let routed = try Router.route(through: points, on: grid)
         #expect(routed.path.count >= 3, "goes round the island, not through it")
-        // The ends may cross shallows to reach a quay; everything between is safe water.
-        let legs = Array(zip(routed.path, routed.path.dropFirst())).dropFirst().dropLast()
-        for (a, b) in legs {
+        // The ends may cross shallows to reach a quay; everything in the open-sea passage between is safe water.
+        let safeCell = { (c: CLLocationCoordinate2D) in grid.index(of: c).map(grid.isNavigable) == true }
+        for (a, b) in zip(routed.path, routed.path.dropFirst()) where safeCell(a) && safeCell(b) {
             #expect(Router.hazard(from: a, to: b, rules: rules) == nil, "\(a) → \(b)")
         }
     }
