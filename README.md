@@ -1,24 +1,17 @@
-<h1 align="center">Leeway</h1>
+﻿# Leeway
 
-<p align="center">
-  <b>A native iOS chartplotter and passage planner with offline sea charts and land-avoiding routing.</b><br>
-  SwiftUI, MapLibre, iOS 26 (Liquid Glass) and a Rust data server. Eastern Adriatic charts built from open data.
-</p>
+![iOS 26](https://img.shields.io/badge/iOS-26-blue) ![SwiftUI](https://img.shields.io/badge/SwiftUI-MapLibre-orange) ![Rust](https://img.shields.io/badge/server-Rust%20%2F%20axum-brown)
 
-<p align="center">
-  <img src="docs/screenshots/chart-route.png" alt="Weather-routed passage in day colours" width="19%">
-  <img src="docs/screenshots/chart-kornati.png" alt="Kornati chart with seamarks, soundings and park boundaries" width="19%">
-  <img src="docs/screenshots/satellite.png" alt="Satellite base with chart overlay" width="19%">
-  <img src="docs/screenshots/night.png" alt="Night colours" width="19%">
-  <img src="docs/screenshots/weather.png" alt="Wind and tide forecast" width="19%">
-</p>
-<p align="center"><sub>A weather-routed passage, the Kornati chart, satellite with the chart on top, night colours, and the wind and tide forecast.</sub></p>
+Native iOS chartplotter and passage planner with offline sea charts, land-avoiding
+routing and weather routing. SwiftUI and MapLibre on the client, a Rust data server
+behind it. One nautical chart covers the world; detailed offline charts exist for the
+**eastern Adriatic** (Slovenian coast, Istria, Kvarner, Dalmatia, Dubrovnik and the Bay
+of Kotor, 13.2–19.0°E, 42.2–45.57°N), built from open data.
 
+<img src="docs/screenshots/chart-route.png" alt="Weather-routed passage in day colours" width="19%"> <img src="docs/screenshots/chart-kornati.png" alt="Kornati chart with seamarks, soundings and park boundaries" width="19%"> <img src="docs/screenshots/satellite.png" alt="Satellite base with chart overlay" width="19%"> <img src="docs/screenshots/night.png" alt="Night colours" width="19%"> <img src="docs/screenshots/weather.png" alt="Wind and tide forecast" width="19%">
 
-
-A native iOS chartplotter and passage planner in the spirit of savvy navvy and Garmin plotters: SwiftUI, MapLibre,
-iOS 26 (Liquid Glass). One nautical chart for the whole world, with detailed offline charts for the **eastern Adriatic**
-(the Slovenian coast, Istria, Kvarner, Dalmatia, Dubrovnik and the Bay of Kotor, 13.2–19.0°E, 42.2–45.57°N).
+From left: weather-routed passage, Kornati chart, satellite base with chart overlay,
+night palette, wind and tide forecast.
 
 ## Features
 
@@ -76,15 +69,28 @@ so the snapshot is committed). Covering another country means widening those.
 
 ## Architecture
 
-```
-Leeway app (SwiftUI + MapLibre Native)            seadata server (Rust/axum, Venvy)
- ChartStyle → MapLibre style JSON                  /v1/tiles/base, /v1/fonts      OpenFreeMap vector tiles + glyphs
-  ├ base       vector  ─────────────────────────── /v1/tiles/bathy                worldwide depth (AWS Terrain → MVT)
-  ├ bathy      vector  ───────────────────────────
-  ├ chart-<id> pmtiles://  (pack on the phone)
-  ├ satellite / openseamap / radar  raster  ────── /v1/tiles/satellite, seamark, radar
-  └ live-*     GeoJSON (route, track, AIS, wind,   /v1/forecast, /v1/wind-grid    Open-Meteo, merged and cached
-               underway, warnings, marks, measure) /v1/sealevel, /v1/warnings, /v1/search, /v1/ais, /v1/charts
+```mermaid
+flowchart LR
+    subgraph App["Leeway app (SwiftUI + MapLibre Native)"]
+        S[ChartStyle → MapLibre style JSON]
+        S --> base[base: vector]
+        S --> bathy[bathy: vector]
+        S --> pack["chart-&lt;id&gt;: pmtiles (pack on the phone)"]
+        S --> ras[satellite / openseamap / radar: raster]
+        S --> live["live-*: GeoJSON<br/>route, track, AIS, wind, warnings, marks"]
+    end
+    subgraph Server["seadata server (Rust / axum)"]
+        t1["/v1/tiles/base, /v1/fonts<br/>OpenFreeMap vector tiles + glyphs"]
+        t2["/v1/tiles/bathy<br/>worldwide depth (AWS Terrain → MVT)"]
+        t3["/v1/tiles/satellite, seamark, radar"]
+        t4["/v1/forecast, /v1/wind-grid, /v1/sealevel<br/>Open-Meteo, merged and cached"]
+        t5["/v1/warnings, /v1/search, /v1/ais, /v1/charts"]
+    end
+    base --> t1
+    bathy --> t2
+    ras --> t3
+    live --> t4
+    live --> t5
 ```
 
 Chart packs keep a `.depth` grid (routing, depth under the boat) next to the `.pmtiles` vector chart (drawing).
@@ -195,7 +201,10 @@ python3 -m venv .venv && .venv/bin/pip install numpy scipy shapely pillow tifffi
 - For a commercial release, the terms of OpenFreeMap, OpenSeaMap tiles, RainViewer, Photon and Open-Meteo (commercial plan)
   need checking; official ENC data would need licensing.
 
-## Next steps
+## Roadmap
 
-More chart packs (Ionian, Tyrrhenian), currents in weather routing, a tide station database, AIS target trails, Apple Watch
-companion, CarPlay.
+- Additional chart packs (Ionian, Tyrrhenian)
+- Currents in weather routing
+- Tide station database
+- AIS target trails
+- Apple Watch companion and CarPlay
