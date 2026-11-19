@@ -1,10 +1,10 @@
 import CoreLocation
 import Foundation
 import Testing
-@testable import Leeway
+@testable import LeewayKit
 
 /// The Adriatic chart pack shipped with the app, loaded once (it's a 40 MB grid).
-private let adriatic: ChartRegion? = ChartRegion.all(bundle: .main).first { $0.id == "adriatic" }
+private let adriatic: ChartRegion? = ChartRegion.all().first { $0.id == "adriatic" }
 
 private func coordinate(_ lat: Double, _ lon: Double) -> CLLocationCoordinate2D {
     CLLocationCoordinate2D(latitude: lat, longitude: lon)

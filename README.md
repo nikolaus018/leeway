@@ -208,3 +208,11 @@ python3 -m venv .venv && .venv/bin/pip install numpy scipy shapely pillow tifffi
 - Tide station database
 - AIS target trails
 - Apple Watch companion and CarPlay
+
+## Hub module
+
+The app's code is a Swift package, `Packages/LeewayKit` (with MapLibre and the
+bundled charts as package resources), so it also runs inside the
+[Hub](https://github.com/nikolaus018/hub) launcher; `hub-module.json` lists what
+the host app must declare. The standalone app (`Leeway/`) shows `LeewayRootView()`
+and keeps the Underway Live Activity widget, which the Hub can't host.

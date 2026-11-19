@@ -156,7 +156,7 @@ nonisolated final class ChartRegion: Sendable {
     static let downloadDirectory = URL.applicationSupportDirectory.appending(path: "Charts", directoryHint: .isDirectory)
 
     /// Downloaded packs, plus the ones shipped in the app bundle that no download replaces.
-    static func all(bundle: Bundle = .main) -> [ChartRegion] {
+    static func all(bundle: Bundle = .module) -> [ChartRegion] {
         let downloaded = ((try? FileManager.default.contentsOfDirectory(at: downloadDirectory, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "json" }
         let replaced = Set(downloaded.map { $0.deletingPathExtension().lastPathComponent })

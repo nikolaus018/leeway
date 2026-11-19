@@ -3,7 +3,7 @@ import Foundation
 import MapLibre
 import Testing
 import UIKit
-@testable import Leeway
+@testable import LeewayKit
 
 struct GPXTests {
     @Test func roundTripsRoutesTracksAndWaypoints() throws {

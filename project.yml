@@ -5,9 +5,9 @@ options:
     iOS: "26.0"
   createIntermediateGroups: true
 packages:
-  MapLibre:
-    url: https://github.com/maplibre/maplibre-gl-native-distribution
-    exactVersion: 6.31.0
+  # The app itself (with MapLibre and the bundled charts); also a Hub module.
+  LeewayKit:
+    path: Packages/LeewayKit
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -21,14 +21,9 @@ targets:
     platform: iOS
     sources:
       - path: Leeway
-        excludes: ["Charts/**"]
-      - path: Leeway/Charts
-        type: folder
-        buildPhase: resources
-      - path: Shared
     dependencies:
       - target: LeewayWidgets
-      - package: MapLibre
+      - package: LeewayKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway
@@ -73,6 +68,7 @@ targets:
       - path: LeewayTests
     dependencies:
       - target: Leeway
+      - package: LeewayKit
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -87,7 +83,8 @@ targets:
     platform: iOS
     sources:
       - path: LeewayWidgets
-      - path: Shared
+      # The Live Activity's attributes, shared with the app (lives in the package).
+      - path: Packages/LeewayKit/Sources/LeewayKit/Shared/UnderwayActivity.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikolausmarek.leeway.widgets

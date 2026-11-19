@@ -1,0 +1,22 @@
+{
+  "id": "leeway",
+  "name": "Leeway",
+  "subtitle": "Offline sea charts and passage planning",
+  "symbol": "sailboat.fill",
+  "tint": "007AAA",
+  "product": "LeewayKit",
+  "rootView": "LeewayRootView",
+  "minimumIOS": "26.0",
+  "backgroundModes": ["location"],
+  "infoPlist": {
+    "NSLocationWhenInUseUsageDescription": "Leeway shows your position on the chart and records your track.",
+    "NSLocationAlwaysAndWhenInUseUsageDescription": "Leeway keeps recording your track while the screen is off.",
+    "NSLocalNetworkUsageDescription": "Leeway connects to your boat's instruments and AIS over Wi-Fi, and can use a data server on board.",
+    "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true },
+    "UTImportedTypeDeclarations": [
+      { "UTTypeIdentifier": "com.topografix.gpx", "UTTypeDescription": "GPS Exchange Format",
+        "UTTypeConformsTo": ["public.xml"],
+        "UTTypeTagSpecification": { "public.filename-extension": ["gpx"], "public.mime-type": ["application/gpx+xml"] } }
+    ]
+  }
+}
